@@ -1,0 +1,10 @@
+# Repository under evaluation. Arm clones are made from it.
+[target]
+repo = "git@github.com:csggnn/job-search-agent.git"
+# Path of the setup submodule inside the target repo.
+setup_path = ".setup"
+
+# Arm clones, per-arm Claude config dirs and the hidden X/Y mapping live here,
+# outside the bench repo.
+[workspace]
+root = "~/bench-runs"

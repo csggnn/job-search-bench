@@ -1,0 +1,13 @@
+# Raw session transcripts and logs. Only counts and scrubbed summaries are committed.
+*.jsonl
+*.log
+transcripts/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.ruff_cache/
+
+# Local-only tool permission overrides
+.claude/settings.local.json
