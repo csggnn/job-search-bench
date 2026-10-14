@@ -11,8 +11,11 @@ BENCH_ROOT = Path(__file__).resolve().parent.parent
 class Config:
     target_repo: str
     setup_path: str
+    default_branch: str
     workspace: Path
     comparisons: Path
+    arm_model: str
+    judge_model: str
 
 
 def load_config(path: Path = BENCH_ROOT / "bench.toml") -> Config:
@@ -20,6 +23,9 @@ def load_config(path: Path = BENCH_ROOT / "bench.toml") -> Config:
     return Config(
         target_repo=data["target"]["repo"],
         setup_path=data["target"]["setup_path"],
+        default_branch=data["target"]["default_branch"],
         workspace=Path(data["workspace"]["root"]).expanduser(),
         comparisons=BENCH_ROOT / "comparisons",
+        arm_model=data["models"]["arm"],
+        judge_model=data["models"]["judge"],
     )

@@ -63,8 +63,11 @@ class PrepareTest(unittest.TestCase):
         self.config = Config(
             target_repo=str(target),
             setup_path=".setup",
+            default_branch="main",
             workspace=self.root / "runs",
             comparisons=self.root / "comparisons",
+            arm_model="arm-model",
+            judge_model="judge-model",
         )
 
     def test_arms_are_isolated_and_pinned(self) -> None:
@@ -86,8 +89,15 @@ class PrepareTest(unittest.TestCase):
             repo = run_dir / arm / "repo"
             self.assertEqual(git("remote", cwd=repo), "")
             self.assertEqual(git("rev-parse", "HEAD", cwd=repo / ".setup"), expected[role])
+            self.assertEqual(git("branch", "--show-current", cwd=repo), "work/feat")
+            self.assertEqual(
+                git("rev-parse", "main", cwd=repo), git("rev-parse", "bench/feat", cwd=repo)
+            )
             settings = json.loads((run_dir / arm / "claude-config" / "settings.json").read_text())
             self.assertFalse(settings["autoMemoryEnabled"])
+            env_sh = (run_dir / arm / "env.sh").read_text()
+            self.assertIn(f"COMPOSE_PROJECT_NAME=bench-2026-10-13-feat-{arm.lower()}", env_sh)
+        self.assertTrue((run_dir / "judge-config" / "settings.json").is_file())
 
         comparison_dir = self.config.comparisons / comparison_id
         self.assertTrue((comparison_dir / "qa-log.md").is_file())

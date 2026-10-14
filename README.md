@@ -20,8 +20,11 @@ Specification: Linear CSG-76 (GitHub issue
 ## Layout
 
 ```
-bench.toml                       # target repo, setup submodule path, workspace root
+bench.toml                       # target repo, setup path, default branch, workspace, models
 bench/                           # the `bench` command
+  arm-settings.json              # pinned Claude settings of every arm
+  judge.md                       # pinned judge prompt
+scripts/complexipy.sh            # pinned complexity checker
 results.csv                      # one row per arm per comparison
 comparisons/<date>-<feature>/
   meta.json                      # snapshot tag, champion and candidate SHAs, Claude Code version
@@ -40,7 +43,7 @@ committed.
 
 ## Usage
 
-Requires Python 3.11+ and git.
+Requires Python 3.11+, git, Claude Code, rootless podman and podman-compose.
 
 ```
 pip install -e .
@@ -56,13 +59,56 @@ pip install -e .
    For each arm X and Y, with the labels assigned at random, this:
    - clones the snapshot tag with `git clone --no-local` and removes the remote,
    - checks out the setup submodule at the arm's SHA,
-   - creates an empty Claude config dir with auto memory disabled,
-   - writes `env.sh`, which sets `CLAUDE_CONFIG_DIR` and enters the clone.
+   - creates the default branch at the tag and checks out the work branch
+     `work/<feature>`,
+   - creates a Claude config dir holding only `bench/arm-settings.json`: auto memory off,
+     edits accepted, and a fixed allowlist of commands,
+   - writes `env.sh`, which sets `CLAUDE_CONFIG_DIR` and a per-arm
+     `COMPOSE_PROJECT_NAME`, and enters the clone.
 
-   It also creates `comparisons/<date>-<feature>/` with `meta.json` and an empty
-   `qa-log.md`.
-3. In each arm: `source <workspace>/<comparison>/<arm>/env.sh && claude`. Each config dir
-   starts empty and requires its own login. Do not use `--continue` or `--resume`.
+   It also creates the judge's config dir, and `comparisons/<date>-<feature>/` with
+   `meta.json` and an empty `qa-log.md`.
+3. Log in once in each arm's config dir and in the judge's, as printed by `prepare`. Each
+   config dir starts empty.
+
+### Run the arms
+
+Headless:
+
+```
+bench run <comparison> --change <openspec-change>
+```
+
+Each arm runs `claude -p "/openspec-apply-change <change> ..."` on the model in
+`bench.toml`, in random order. The prompt asks the agent to commit its work. The
+transcript and stderr go to the arm's workspace dir. Containers the agent started are
+stopped after each arm.
+
+Interactive: in each arm, `source <workspace>/<comparison>/<arm>/env.sh && claude`. Do
+not use `--continue` or `--resume`.
+
+### Score
+
+```
+bench score <comparison>
+```
+
+Per arm, measured on the arm's `HEAD` against the snapshot tag:
+
+| Metric | Source |
+| -- | -- |
+| `lines_changed`, `files_touched` | `git diff --numstat` |
+| `cognitive_total`, `cognitive_worst` | `scripts/complexipy.sh` on the changed Python files, every function in them |
+| `unit_tests_pass` | `tests/unit` in the arm's `job-search` container |
+| `turns`, `cost_usd`, `model` | the transcript's `result` and `init` messages |
+| `nudges` | rows of `qa-log.md` for the arm |
+
+The judge runs `bench/judge.md` on the judge model with the OpenSpec change and both diffs,
+labelled X and Y, in an empty directory with its own config dir.
+
+`score` writes `metrics/<arm>.json`, `metrics/complexipy-<arm>.txt`,
+`metrics/unit-tests-<arm>.txt` and `metrics/judge.md`, appends one `results.csv` row per
+arm, adds the X/Y mapping to `meta.json` and writes a draft `summary.md`.
 
 ### Isolation rules
 
@@ -90,9 +136,9 @@ manual_test_pass, judge_preferred, shipped, decision`
 
 ## Status
 
-Implemented: `bench prepare`.
+Implemented: `bench prepare`, `bench run`, `bench score` with local metrics and the judge.
 
-Not implemented: `bench score`, the review-triage agent, the judge prompt and the report
+Not implemented: the review-triage agent, CodeRabbit and Sonar metrics, PR comments and the report
 generator.
 
 ## Development

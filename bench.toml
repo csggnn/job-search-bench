@@ -3,8 +3,15 @@
 repo = "git@github.com:csggnn/job-search-agent.git"
 # Path of the setup submodule inside the target repo.
 setup_path = ".setup"
+# Branch the snapshot tag belongs to. Each arm has it as a local branch at the tag.
+default_branch = "master"
 
 # Arm clones, per-arm Claude config dirs and the hidden X/Y mapping live here,
 # outside the bench repo.
 [workspace]
 root = "~/bench-runs"
+
+# The judge runs on a different model than the arms.
+[models]
+arm = "claude-opus-5-5"
+judge = "claude-sonnet-5-5"

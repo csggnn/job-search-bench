@@ -1,7 +1,8 @@
 """Creates two isolated arms for one comparison from a frozen snapshot tag.
 
 Each arm gets a fresh clone of the snapshot with no remote, the setup submodule
-checked out at its SHA, and an empty Claude Code config dir with auto memory off.
+checked out at its SHA, the default branch at the snapshot and a work branch checked out,
+and a Claude Code config dir holding only the pinned arm settings.
 Arms are labelled X and Y; the champion/candidate mapping is written to the
 workspace and stays out of the comparison folder until scoring.
 """
@@ -13,11 +14,14 @@ import subprocess
 from datetime import date
 from pathlib import Path
 
-from bench.config import Config
+from bench.config import BENCH_ROOT, Config
 
 ARMS = ("X", "Y")
 ROLES = ("champion", "candidate")
 TAG_PREFIX = "bench/"
+WORK_BRANCH_PREFIX = "work/"
+# Auto memory off, permissions for headless runs. Pinned here, identical for both arms.
+ARM_SETTINGS = BENCH_ROOT / "bench" / "arm-settings.json"
 
 QA_LOG_TEMPLATE = """# Q&A log: {comparison_id}
 
@@ -41,6 +45,16 @@ def _claude_code_version() -> str | None:
     return result.stdout.split()[0] if result.returncode == 0 else None
 
 
+def arm_env(arm_dir: Path) -> dict[str, str]:
+    """Environment variables of one arm. arm_dir is <workspace>/<comparison>/<arm>."""
+    compose_project = f"bench-{arm_dir.parent.name}-{arm_dir.name}".lower()
+    return {
+        "CLAUDE_CONFIG_DIR": str(arm_dir / "claude-config"),
+        "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+        "COMPOSE_PROJECT_NAME": compose_project,
+    }
+
+
 def _prepare_arm(config: Config, tag: str, setup_sha: str, arm_dir: Path) -> None:
     repo = arm_dir / "repo"
     claude_config = arm_dir / "claude-config"
@@ -53,16 +67,13 @@ def _prepare_arm(config: Config, tag: str, setup_sha: str, arm_dir: Path) -> Non
     if not actual.startswith(setup_sha) and not setup_sha.startswith(actual):
         raise RuntimeError(f"{setup} is at {actual}, expected {setup_sha}")
     _git("remote", "remove", "origin", cwd=repo)
+    _git("branch", config.default_branch, "HEAD", cwd=repo)
+    _git("switch", "-c", WORK_BRANCH_PREFIX + tag.removeprefix(TAG_PREFIX), cwd=repo)
 
     claude_config.mkdir()
-    (claude_config / "settings.json").write_text(
-        json.dumps({"autoMemoryEnabled": False}, indent=2) + "\n"
-    )
-    (arm_dir / "env.sh").write_text(
-        f"export CLAUDE_CONFIG_DIR={claude_config}\n"
-        "export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1\n"
-        f"cd {repo}\n"
-    )
+    shutil.copyfile(ARM_SETTINGS, claude_config / "settings.json")
+    exports = "".join(f"export {name}={value}\n" for name, value in arm_env(arm_dir).items())
+    (arm_dir / "env.sh").write_text(f"{exports}cd {repo}\n")
 
 
 def prepare(
@@ -93,6 +104,10 @@ def prepare(
     for arm, role in mapping.items():
         _prepare_arm(config, tag, setup_shas[role], run_dir / arm)
     (run_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
+    # The judge's own config dir, so no user-level guidance reaches it.
+    judge_config = run_dir / "judge-config"
+    judge_config.mkdir()
+    (judge_config / "settings.json").write_text(json.dumps({"autoMemoryEnabled": False}) + "\n")
 
     (comparison_dir / "metrics").mkdir(parents=True)
     (comparison_dir / "qa-log.md").write_text(QA_LOG_TEMPLATE.format(comparison_id=comparison_id))
