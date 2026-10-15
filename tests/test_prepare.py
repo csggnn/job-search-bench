@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import os
-import random
 import subprocess
 import tempfile
 import unittest
@@ -10,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from bench.config import Config
-from bench.prepare import prepare
+from bench.prepare import parse_setup, prepare
 
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "test",
@@ -44,9 +43,10 @@ class PrepareTest(unittest.TestCase):
         setup = self.root / "setup"
         setup.mkdir()
         git("init", "-b", "main", cwd=setup)
-        self.champion = commit(setup, "rules.md", "champion")
-        git("checkout", "-b", "candidate", cwd=setup)
-        self.candidate = commit(setup, "rules.md", "candidate")
+        base = commit(setup, "rules.md", "base")
+        git("checkout", "-b", "hook", cwd=setup)
+        hook = commit(setup, "rules.md", "hook")
+        self.setups = {"base": base, "hook": hook}
         git("checkout", "main", cwd=setup)
 
         target = self.root / "target"
@@ -82,21 +82,20 @@ class PrepareTest(unittest.TestCase):
         comparison_id = prepare(
             self.config,
             "bench/feat",
-            self.champion,
-            self.candidate,
+            self.setups,
             today=date(2026, 10, 13),
-            rng=random.Random(0),
         )
 
         self.assertEqual(comparison_id, "2026-10-13-feat")
         run_dir = self.config.workspace / comparison_id
         mapping = json.loads((run_dir / "mapping.json").read_text())
-        self.assertEqual(sorted(mapping.values()), ["candidate", "champion"])
-        expected = {"champion": self.champion, "candidate": self.candidate}
-        for arm, role in mapping.items():
+        self.assertEqual(mapping, {"X": "base", "Y": "hook"})
+        for arm, label in mapping.items():
             repo = run_dir / arm / "repo"
             self.assertEqual(git("remote", cwd=repo), "")
-            self.assertEqual(git("rev-parse", "HEAD", cwd=run_dir / arm / "plugin"), expected[role])
+            self.assertEqual(
+                git("rev-parse", "HEAD", cwd=run_dir / arm / "plugin"), self.setups[label]
+            )
             self.assertEqual(git("branch", "--show-current", cwd=repo), "work/feat")
             self.assertEqual(
                 git("rev-parse", "main", cwd=repo), git("rev-parse", "bench/feat", cwd=repo)
@@ -122,22 +121,32 @@ class PrepareTest(unittest.TestCase):
         self.assertEqual(meta["setup_repo"], self.config.setup_repo)
         self.assertEqual(len(meta["user_config_sha256"]), 64)
         self.assertTrue(meta["complexipy_version"])
+        self.assertEqual(meta["setups"], self.setups)
 
     def test_missing_user_config_path_fails(self) -> None:
         config = dataclasses.replace(self.config, user_config_paths=("absent",))
         with self.assertRaises(FileNotFoundError):
-            prepare(config, "bench/feat", self.champion, self.candidate)
+            prepare(config, "bench/feat", self.setups)
+
+    def test_requires_two_setups(self) -> None:
+        with self.assertRaises(ValueError):
+            prepare(self.config, "bench/feat", {"base": self.setups["base"]})
+
+    def test_parse_setup(self) -> None:
+        self.assertEqual(parse_setup("715c15d:cc-hook"), ("cc-hook", "715c15d"))
+        self.assertEqual(parse_setup("abc:candidate/x"), ("candidate/x", "abc"))
+        for text in ("715c15d", "715c15d:", ":label"):
+            with self.assertRaises(ValueError):
+                parse_setup(text)
 
     def test_rejects_tag_without_prefix(self) -> None:
         with self.assertRaises(ValueError):
-            prepare(self.config, "feat", self.champion, self.candidate)
+            prepare(self.config, "feat", self.setups)
 
     def test_refuses_existing_comparison(self) -> None:
-        prepare(self.config, "bench/feat", self.champion, self.candidate, today=date(2026, 1, 1))
+        prepare(self.config, "bench/feat", self.setups, today=date(2026, 1, 1))
         with self.assertRaises(FileExistsError):
-            prepare(
-                self.config, "bench/feat", self.champion, self.candidate, today=date(2026, 1, 1)
-            )
+            prepare(self.config, "bench/feat", self.setups, today=date(2026, 1, 1))
 
 
 if __name__ == "__main__":

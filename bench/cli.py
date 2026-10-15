@@ -3,7 +3,7 @@
 import argparse
 
 from bench.config import load_config
-from bench.prepare import ARMS, prepare
+from bench.prepare import ARMS, parse_setup, prepare
 from bench.run import run
 from bench.score import score
 
@@ -16,8 +16,12 @@ def main() -> None:
         "prepare", help="create isolated X/Y arms for one comparison"
     )
     prepare_parser.add_argument("tag", help="snapshot tag, bench/<feature>")
-    prepare_parser.add_argument("champion_sha", help="setup commit of the champion")
-    prepare_parser.add_argument("candidate_sha", help="setup commit of the candidate")
+    prepare_parser.add_argument(
+        "setups",
+        nargs=2,
+        metavar="SHA:LABEL",
+        help="setup commit and a label naming it, e.g. 715c15d:cc-hook",
+    )
 
     run_parser = commands.add_parser("run", help="run code generation headless in both arms")
     run_parser.add_argument("comparison", help="comparison id")
@@ -29,7 +33,10 @@ def main() -> None:
     args = parser.parse_args()
     config = load_config()
     if args.command == "prepare":
-        comparison_id = prepare(config, args.tag, args.champion_sha, args.candidate_sha)
+        setups = dict(parse_setup(text) for text in args.setups)
+        if len(setups) != len(args.setups):
+            parser.error("setup labels must differ")
+        comparison_id = prepare(config, args.tag, setups)
         run_dir = config.workspace / comparison_id
         print(f"comparison: {comparison_id}")
         for arm in ARMS:
@@ -39,7 +46,7 @@ def main() -> None:
         run(config, args.comparison, args.change)
     else:
         for metrics in score(config, args.comparison):
-            print(f"arm {metrics.arm}: {metrics.role}")
+            print(f"arm {metrics.arm}: {metrics.setup}")
 
 
 if __name__ == "__main__":

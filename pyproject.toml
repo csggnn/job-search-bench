@@ -1,7 +1,7 @@
 [project]
 name = "job-search-bench"
 version = "0.1.0"
-description = "Champion-vs-candidate evaluation of the Claude Code dev setup used on job-search-agent"
+description = "Pairwise evaluation of two versions of the Claude Code dev setup used on job-search-agent"
 requires-python = ">=3.11"
 # complexipy measures the arms. Its version is recorded in each comparison's meta.json.
 dependencies = ["complexipy==8.0.1"]

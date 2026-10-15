@@ -30,7 +30,7 @@ PREFERRED_RE = re.compile(r"^PREFERRED:\s*(X|Y|TIE)\s*$", re.MULTILINE)
 @dataclass
 class ArmMetrics:
     arm: str
-    role: str
+    setup: str
     setup_sha: str
     final_commit: str
     uncommitted_changes: bool
@@ -130,7 +130,7 @@ def count_nudges(qa_log: str, arm: str) -> int:
     return sum(1 for line in qa_log.splitlines() if re.match(rf"^\|\s*{arm}\s*\|", line))
 
 
-def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, role: str) -> ArmMetrics:
+def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: str) -> ArmMetrics:
     arm_dir = config.workspace / comparison_id / arm
     repo = arm_dir / "repo"
     metrics_dir = config.comparisons / comparison_id / "metrics"
@@ -142,8 +142,8 @@ def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, role: s
     qa_log = (config.comparisons / comparison_id / "qa-log.md").read_text()
     return ArmMetrics(
         arm=arm,
-        role=role,
-        setup_sha=meta[f"{role}_sha"],
+        setup=setup,
+        setup_sha=meta["setups"][setup],
         final_commit=_run(["git", "rev-parse", "HEAD"], repo).strip(),
         uncommitted_changes=bool(_run(["git", "status", "--porcelain"], repo).strip()),
         lines_changed=lines,
@@ -212,7 +212,7 @@ def results_rows(meta: dict, arms: list[ArmMetrics], verdict: str | None) -> lis
                 "feature": meta["feature"],
                 "snapshot_tag": meta["snapshot_tag"],
                 "arm": metrics.arm,
-                "role": metrics.role,
+                "setup": metrics.setup,
                 "setup_sha": metrics.setup_sha,
                 "model": metrics.model or "",
                 "claude_code_version": meta.get("claude_code_version") or "",
@@ -241,7 +241,7 @@ def _append_results(rows: list[dict], comparison_id: str) -> None:
 
 
 SUMMARY_FIELDS = (
-    "role",
+    "setup",
     "setup_sha",
     "lines_changed",
     "files_touched",

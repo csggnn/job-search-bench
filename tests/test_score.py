@@ -23,10 +23,10 @@ META = {
 }
 
 
-def arm_metrics(arm: str, role: str) -> ArmMetrics:
+def arm_metrics(arm: str, setup: str) -> ArmMetrics:
     return ArmMetrics(
         arm=arm,
-        role=role,
+        setup=setup,
         setup_sha="abc",
         final_commit="def",
         uncommitted_changes=False,
@@ -76,21 +76,21 @@ class ParseTest(unittest.TestCase):
 
 class OutputTest(unittest.TestCase):
     def test_results_rows_mark_the_preferred_arm(self) -> None:
-        arms = [arm_metrics("X", "champion"), arm_metrics("Y", "candidate")]
+        arms = [arm_metrics("X", "base"), arm_metrics("Y", "hook")]
         rows = results_rows(META, arms, "Y")
         self.assertEqual([row["judge_preferred"] for row in rows], ["no", "yes"])
         self.assertEqual(rows[0]["cost_usd"], 3.46)
         self.assertEqual(rows[1]["date"], "2026-10-15")
 
     def test_tie_and_missing_verdict(self) -> None:
-        arms = [arm_metrics("X", "champion")]
+        arms = [arm_metrics("X", "base")]
         self.assertEqual(results_rows(META, arms, "TIE")[0]["judge_preferred"], "tie")
         self.assertEqual(results_rows(META, arms, None)[0]["judge_preferred"], "")
 
     def test_summary_lists_each_arm(self) -> None:
-        arms = [arm_metrics("X", "champion"), arm_metrics("Y", "candidate")]
+        arms = [arm_metrics("X", "base"), arm_metrics("Y", "hook")]
         text = summary_markdown(META, arms, "X")
-        self.assertIn("| role | champion | candidate |", text)
+        self.assertIn("| setup | base | hook |", text)
         self.assertIn("Run order: Y, X.", text)
 
 
