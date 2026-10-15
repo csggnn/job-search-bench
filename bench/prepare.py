@@ -147,8 +147,12 @@ def _prepare_arm(
     _write_claude_config(config, user_config, arm_dir)
     exports = "".join(f"export {name}={value}\n" for name, value in arm_env(arm_dir).items())
     # bash expands aliases when it reads a line. A function applies to the `claude` in
-    # `source env.sh && claude`.
-    wrapper = f'claude() {{ command claude --plugin-dir {plugin_dir(arm_dir)} "$@"; }}\n'
+    # `source env.sh && claude`. An existing `claude` alias would take precedence over the
+    # function, so it is removed first.
+    wrapper = (
+        "unalias claude 2>/dev/null || true\n"
+        f'function claude {{ command claude --plugin-dir {plugin_dir(arm_dir)} "$@"; }}\n'
+    )
     (arm_dir / "env.sh").write_text(f"{exports}{wrapper}cd {repo}\n")
 
 
