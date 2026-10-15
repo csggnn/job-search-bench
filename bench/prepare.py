@@ -147,8 +147,10 @@ def _prepare_arm(
     _clone_plugin(config, setup_sha, arm_dir)
     _write_claude_config(config, user_config, arm_dir)
     exports = "".join(f"export {name}={value}\n" for name, value in arm_env(arm_dir).items())
-    alias = f"alias claude='claude --plugin-dir {plugin_dir(arm_dir)}'\n"
-    (arm_dir / "env.sh").write_text(f"{exports}{alias}cd {repo}\n")
+    # bash expands aliases when it reads a line. A function applies to the `claude` in
+    # `source env.sh && claude`.
+    wrapper = f'claude() {{ command claude --plugin-dir {plugin_dir(arm_dir)} "$@"; }}\n'
+    (arm_dir / "env.sh").write_text(f"{exports}{wrapper}cd {repo}\n")
 
 
 def parse_setup(text: str) -> tuple[str, str]:

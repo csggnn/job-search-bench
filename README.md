@@ -67,8 +67,8 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
      `bench/instruments/arm-settings.json`: auto memory off, edits accepted, and a fixed
      allowlist of commands,
    - writes `env.sh`, which sets `CLAUDE_CONFIG_DIR` and a per-arm
-     `COMPOSE_PROJECT_NAME`, aliases `claude` to load the arm's plugin, and enters the
-     clone.
+     `COMPOSE_PROJECT_NAME`, defines a `claude` shell function that loads the arm's plugin,
+     and enters the clone.
 
    The user config snapshot is taken once and copied into both arms. It holds the paths in
    `[user_config]` of `bench.toml`, relative to `source`, and the listed keys of
