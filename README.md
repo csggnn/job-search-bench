@@ -21,12 +21,14 @@ bench/                           # the `bench` command
   instruments/                   # fixed inputs of every comparison, never part of a setup
     arm-settings.json            # Claude settings of every arm
     judge.md                     # judge prompt
+    task-triage.md               # prompt that finds tasks a headless arm cannot perform
 pyproject.toml, uv.lock          # pinned dependencies: complexipy measures the arms, ruff lints
                                  # this repo
 results.csv                      # one row per arm per comparison
 comparisons/<date>-<feature>/
   meta.json                      # snapshot tag, SHAs, Claude Code and complexipy versions
   qa-log.md                      # nudges: questions and answers
+  task-triage.md                 # tasks the arms skip, with reasons
   summary.md                     # generated draft + notes and decision
   metrics/                       # per-arm scores and raw tool output
 ```
@@ -86,7 +88,7 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
 Headless:
 
 ```
-bench run <comparison> --change <openspec-change> [--skip-task <id> ...]
+bench run <comparison> --change <openspec-change>
 ```
 
 Each arm runs `claude -p "/openspec-apply-change <change> ..." --plugin-dir <arm>/plugin`
@@ -94,9 +96,11 @@ on the model in `bench.toml`, in random order. The prompt asks the agent to comm
 transcript and stderr go to the arm's workspace dir. Containers the agent started are
 stopped after each arm.
 
-`--skip-task` names a task that needs resources an arm lacks, such as personal data in
-`data/` or paid API calls. The prompt tells both arms to leave it undone and unchecked.
-`meta.json` records the list as `skip_tasks`.
+Before the arms run, the judge model reads the change's `tasks.md` with
+`bench/instruments/task-triage.md` and names the tasks a headless arm cannot perform:
+tasks that need personal data, paid API calls, human input or manual inspection. The prompt
+tells both arms to leave those tasks undone and unchecked. `meta.json` records them as
+`skip_tasks`, and `task-triage.md` in the comparison folder holds the reasoning.
 
 Interactive: in each arm, `source <workspace>/<comparison>/<arm>/env.sh && claude`. Do
 not use `--continue` or `--resume`. An interactive run writes no `transcript.jsonl`, so
