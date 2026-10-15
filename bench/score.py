@@ -1,7 +1,8 @@
 """Scores both arms of a comparison after their runs.
 
 Per arm: diff size against the snapshot tag, cognitive complexity of the changed Python
-files, unit test result, turns and cost from the transcript, and nudges from qa-log.md. A
+files, unit test result, turns, cost and skills used from the transcript, and nudges from
+qa-log.md. A
 judge compares both diffs on a different model than the arms. Writes metrics/, one
 results.csv row per arm and a draft summary.md. The X/Y mapping is read only here.
 """
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from bench.config import BENCH_ROOT, Config
 from bench.prepare import ARMS, arm_env
+from bench.spec import spec_text
 
 RESULTS_CSV = BENCH_ROOT / "results.csv"
 # complexipy is a dependency of the bench, installed next to the running interpreter.
@@ -44,6 +46,7 @@ class ArmMetrics:
     cost_usd: float | None
     model: str | None
     run_error: bool | None
+    skills_used: str | None  # space-separated, in order of first use
 
 
 def _run(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> str:
@@ -110,18 +113,31 @@ def _unit_tests_pass(repo: Path, env: dict[str, str], log_path: Path) -> bool:
 
 
 def parse_transcript(path: Path) -> dict:
-    """Model, turns, cost and error flag from a `claude -p --output-format stream-json` file."""
-    summary = {"model": None, "turns": None, "cost_usd": None, "run_error": None}
+    """Model, turns, cost, error flag and skills from a `claude -p --output-format stream-json`
+    file."""
+    summary = {
+        "model": None,
+        "turns": None,
+        "cost_usd": None,
+        "run_error": None,
+        "skills_used": None,
+    }
     if not path.exists():
         return summary
+    skills: list[str] = []
     for line in path.read_text().splitlines():
         message = json.loads(line)
         if message.get("type") == "system" and message.get("subtype") == "init":
             summary["model"] = message.get("model")
+        elif message.get("type") == "assistant":
+            for block in message["message"].get("content", []):
+                if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                    skills.append(block["input"].get("skill", ""))
         elif message.get("type") == "result":
             summary["turns"] = message.get("num_turns")
             summary["cost_usd"] = message.get("total_cost_usd")
             summary["run_error"] = message.get("is_error")
+    summary["skills_used"] = " ".join(dict.fromkeys(skills))
     return summary
 
 
@@ -158,12 +174,12 @@ def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: 
 
 def _judge_input(config: Config, comparison_id: str, meta: dict) -> str:
     tag = meta["snapshot_tag"]
-    change_dir = f"openspec/changes/{meta['change']}"
     first_repo = config.workspace / comparison_id / ARMS[0] / "repo"
-    files = _run(["git", "ls-tree", "-r", "--name-only", tag, change_dir], first_repo).split()
-    parts = [JUDGE_PROMPT.read_text(), "# OpenSpec change"]
-    for name in files:
-        parts.append(f"## {name}\n\n{_run(['git', 'show', f'{tag}:{name}'], first_repo)}")
+    parts = [
+        JUDGE_PROMPT.read_text(),
+        "# Feature description",
+        spec_text(first_repo, tag, meta["spec"]),
+    ]
     for arm in ARMS:
         repo = config.workspace / comparison_id / arm / "repo"
         diff = _run(["git", "diff", "--text", tag, "HEAD", "--", ".", ":!*.png"], repo)
@@ -221,6 +237,7 @@ def results_rows(meta: dict, arms: list[ArmMetrics], verdict: str | None) -> lis
                 "cognitive_total": metrics.cognitive_total,
                 "cognitive_worst": metrics.cognitive_worst,
                 "nudges": metrics.nudges,
+                "skills_used": metrics.skills_used or "",
                 "turns": "" if metrics.turns is None else metrics.turns,
                 "cost_usd": "" if metrics.cost_usd is None else round(metrics.cost_usd, 2),
                 "judge_preferred": preferred,
@@ -250,6 +267,7 @@ SUMMARY_FIELDS = (
     "unit_tests_pass",
     "uncommitted_changes",
     "nudges",
+    "skills_used",
     "turns",
     "cost_usd",
     "run_error",
@@ -262,7 +280,7 @@ def summary_markdown(meta: dict, arms: list[ArmMetrics], verdict: str | None) ->
         f"# {meta['comparison_id']}",
         "",
         f"Feature: {meta['feature']}. Snapshot: `{meta['snapshot_tag']}`. "
-        f"Change: `{meta.get('change')}`. Run order: {', '.join(meta.get('run_order', []))}.",
+        f"Spec: `{meta.get('spec')}`. Run order: {', '.join(meta.get('run_order', []))}.",
         "",
         "## Metrics",
         "",
