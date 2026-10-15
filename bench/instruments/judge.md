@@ -1,5 +1,5 @@
 You compare two implementations, X and Y, of the same change to a Python project. Both
-started from the same commit and implement the same OpenSpec change, given below.
+started from the same commit and implement the same feature description, given below.
 
 Judge which implementation a maintainer would rather merge and maintain. Consider, in this
 order:

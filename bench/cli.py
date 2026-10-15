@@ -25,7 +25,9 @@ def main() -> None:
 
     run_parser = commands.add_parser("run", help="run code generation headless in both arms")
     run_parser.add_argument("comparison", help="comparison id")
-    run_parser.add_argument("--change", required=True, help="OpenSpec change to apply")
+    run_parser.add_argument(
+        "--spec", required=True, help="feature description: a file or directory in the target repo"
+    )
 
     score_parser = commands.add_parser("score", help="score both arms and write the results")
     score_parser.add_argument("comparison", help="comparison id")
@@ -43,7 +45,7 @@ def main() -> None:
             print(f"arm {arm}: source {run_dir / arm / 'env.sh'} && claude")
         print(f"judge: CLAUDE_CONFIG_DIR={run_dir / 'judge-config'} claude")
     elif args.command == "run":
-        run(config, args.comparison, args.change)
+        run(config, args.comparison, args.spec)
     else:
         for metrics in score(config, args.comparison):
             print(f"arm {metrics.arm}: {metrics.setup}")

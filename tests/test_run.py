@@ -32,21 +32,23 @@ class RunTest(unittest.TestCase):
 
             def fake_run(command, **kwargs):
                 result = mock.Mock(returncode=0, stdout="")
-                if command[:2] == ["git", "show"]:
+                if command[:2] == ["git", "ls-tree"]:
+                    result.stdout = "specs/feat/tasks.md\n"
+                elif command[:2] == ["git", "show"]:
                     result.stdout = "- [ ] 5.2 Run it on a real ad"
                 elif command[0] == "claude" and "input" in kwargs:
                     result.stdout = "5.2 needs a real ad.\n\nSKIP: 5.2, 5.3\n"
                 return result
 
             with mock.patch("bench.run.subprocess.run", side_effect=fake_run) as subprocess_run:
-                order = run(config, "c1", "add-feat", rng=random.Random(0))
+                order = run(config, "c1", "specs/feat", rng=random.Random(0))
 
             meta = json.loads((config.comparisons / "c1" / "meta.json").read_text())
             self.assertEqual(meta["run_order"], order)
-            self.assertEqual(meta["change"], "add-feat")
+            self.assertEqual(meta["spec"], "specs/feat")
             self.assertEqual(meta["skip_tasks"], ["5.2", "5.3"])
-            git_show = subprocess_run.call_args_list[0]
-            self.assertEqual(git_show.args[0][2], "bench/feat:openspec/changes/add-feat/tasks.md")
+            git_show = subprocess_run.call_args_list[1]
+            self.assertEqual(git_show.args[0][2], "bench/feat:specs/feat/tasks.md")
             triage = (config.comparisons / "c1" / "task-triage.md").read_text()
             self.assertIn("SKIP: 5.2, 5.3", triage)
             claude_calls = [
@@ -56,7 +58,7 @@ class RunTest(unittest.TestCase):
             ]
             self.assertEqual(len(claude_calls), 2)
             for call, arm in zip(claude_calls, order, strict=True):
-                self.assertIn("/openspec-apply-change add-feat", call.args[0][2])
+                self.assertIn("Implement the feature described in `specs/feat`", call.args[0][2])
                 self.assertIn("except tasks 5.2, 5.3: leave them undone", call.args[0][2])
                 self.assertEqual(call.kwargs["cwd"], config.workspace / "c1" / arm / "repo")
                 plugin = str(config.workspace / "c1" / arm / "plugin")

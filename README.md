@@ -53,8 +53,9 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
 
 ### Prepare a comparison
 
-1. Tag the job-search-agent commit that holds the feature's OpenSpec change as
-   `bench/<feature>` and push the tag.
+1. Tag the job-search-agent commit that holds the feature description as
+   `bench/<feature>` and push the tag. The description is a file or a directory, e.g. an
+   OpenSpec change under `openspec/changes/`.
 2. Run:
    ```
    bench prepare bench/<feature> <sha>:<label> <sha>:<label>
@@ -88,15 +89,18 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
 Headless:
 
 ```
-bench run <comparison> --change <openspec-change>
+bench run <comparison> --spec <path>
 ```
 
-Each arm runs `claude -p "/openspec-apply-change <change> ..." --plugin-dir <arm>/plugin`
-on the model in `bench.toml`, in random order. The prompt asks the agent to commit its work. The
+Each arm runs `claude -p "Implement the feature described in <path> ..." --plugin-dir
+<arm>/plugin` on the model in `bench.toml`, in random order. The prompt names no tool. The
+target repo's instructions and skills select the workflow, e.g. job-search-agent's
+`CLAUDE.md` selects `/openspec-apply-change` for a path under `openspec/changes/`. The
+prompt asks the agent to commit its work. The
 transcript and stderr go to the arm's workspace dir. Containers the agent started are
 stopped after each arm.
 
-Before the arms run, the judge model reads the change's `tasks.md` with
+Before the arms run, the judge model reads the feature description with
 `bench/instruments/task-triage.md` and names the tasks a headless arm cannot perform:
 tasks that need personal data, paid API calls, human input or manual inspection. The prompt
 tells both arms to leave those tasks undone and unchecked. `meta.json` records them as
@@ -104,7 +108,7 @@ tells both arms to leave those tasks undone and unchecked. `meta.json` records t
 
 Interactive: in each arm, `source <workspace>/<comparison>/<arm>/env.sh && claude`. Do
 not use `--continue` or `--resume`. An interactive run writes no `transcript.jsonl`, so
-`score` leaves `turns`, `cost_usd` and `model` empty.
+`score` leaves `turns`, `cost_usd`, `model` and `skills_used` empty.
 
 ### Score
 
@@ -120,9 +124,10 @@ Per arm, measured on the arm's `HEAD` against the snapshot tag:
 | `cognitive_total`, `cognitive_worst` | complexipy, from the bench's locked environment, on the changed Python files, every function in them |
 | `unit_tests_pass` | `tests/unit` in the arm's `job-search` container |
 | `turns`, `cost_usd`, `model` | the transcript's `result` and `init` messages |
+| `skills_used` | the transcript's Skill tool calls, in order of first use |
 | `nudges` | rows of `qa-log.md` for the arm |
 
-The judge runs `bench/instruments/judge.md` on the judge model with the OpenSpec change
+The judge runs `bench/instruments/judge.md` on the judge model with the feature description
 and both diffs, labelled X and Y, in an empty directory with its own config dir.
 
 `score` writes `metrics/<arm>.json`, `metrics/complexipy-<arm>.txt`,
@@ -143,8 +148,8 @@ arm, adds the X/Y mapping to `meta.json` and writes a draft `summary.md`.
 
 `comparison_id, date, feature, snapshot_tag, arm, setup, setup_sha, model,
 claude_code_version, lines_changed, files_touched, cognitive_total, cognitive_worst,
-sonar_cognitive, triage_flagged_lines, coderabbit_actionable, nudges, turns, cost_usd,
-manual_test_pass, judge_preferred, shipped`
+sonar_cognitive, triage_flagged_lines, coderabbit_actionable, nudges, skills_used, turns,
+cost_usd, manual_test_pass, judge_preferred, shipped`
 
 `setup` is the label given to `prepare`.
 

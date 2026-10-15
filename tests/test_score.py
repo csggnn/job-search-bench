@@ -18,7 +18,7 @@ META = {
     "feature": "feat",
     "snapshot_tag": "bench/feat",
     "claude_code_version": "2.1.300",
-    "change": "add-feat",
+    "spec": "openspec/changes/add-feat",
     "run_order": ["Y", "X"],
 }
 
@@ -40,7 +40,12 @@ def arm_metrics(arm: str, setup: str) -> ArmMetrics:
         cost_usd=3.456,
         model="arm-model",
         run_error=False,
+        skills_used="openspec-apply-change",
     )
+
+
+def skill(name: str) -> dict:
+    return {"type": "tool_use", "name": "Skill", "input": {"skill": name}}
 
 
 class ParseTest(unittest.TestCase):
@@ -51,7 +56,9 @@ class ParseTest(unittest.TestCase):
     def test_transcript_init_and_result(self) -> None:
         lines = [
             {"type": "system", "subtype": "init", "model": "arm-model"},
-            {"type": "assistant"},
+            {"type": "assistant", "message": {"content": [{"type": "text", "text": "hi"}]}},
+            {"type": "assistant", "message": {"content": [skill("a")]}},
+            {"type": "assistant", "message": {"content": [skill("b"), skill("a")]}},
             {"type": "result", "num_turns": 42, "total_cost_usd": 3.5, "is_error": False},
         ]
         with tempfile.TemporaryDirectory() as tmp:
@@ -59,7 +66,14 @@ class ParseTest(unittest.TestCase):
             path.write_text("\n".join(json.dumps(line) for line in lines))
             summary = parse_transcript(path)
         self.assertEqual(
-            summary, {"model": "arm-model", "turns": 42, "cost_usd": 3.5, "run_error": False}
+            summary,
+            {
+                "model": "arm-model",
+                "turns": 42,
+                "cost_usd": 3.5,
+                "run_error": False,
+                "skills_used": "a b",
+            },
         )
 
     def test_missing_transcript(self) -> None:

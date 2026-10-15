@@ -1,6 +1,6 @@
 """Runs code generation headless in each arm of a prepared comparison.
 
-Before the arms run, the judge model reads the change's task list once and names the tasks
+Before the arms run, the judge model reads the feature description once and names the tasks
 a headless arm cannot perform. Both arms get the same prompt, which excludes those tasks.
 Each arm runs `claude -p` in its own clone and config dir, with its own version of the
 setup plugin. The arms run one after the other, in random order. The stream-json
@@ -16,21 +16,22 @@ import tempfile
 
 from bench.config import BENCH_ROOT, Config
 from bench.prepare import ARMS, arm_env, plugin_dir
+from bench.spec import spec_text
 
 TRIAGE_PROMPT = BENCH_ROOT / "bench" / "instruments" / "task-triage.md"
 SKIP_RE = re.compile(r"^SKIP:\s*(.+?)\s*$", re.MULTILINE)
 
 PROMPT = (
-    "/openspec-apply-change {change}\n\n"
-    "Complete every task of the change{skip}. Then commit all changes on the current branch."
+    "Implement the feature described in `{spec}`{skip}. "
+    "Then commit all changes on the current branch."
 )
 SKIP = ", except tasks {tasks}: leave them undone and unchecked"
 
 
-def prompt(change: str, skip_tasks: list[str]) -> str:
+def prompt(spec: str, skip_tasks: list[str]) -> str:
     """The prompt of both arms."""
     skip = SKIP.format(tasks=", ".join(skip_tasks)) if skip_tasks else ""
-    return PROMPT.format(change=change, skip=skip)
+    return PROMPT.format(spec=spec, skip=skip)
 
 
 def parse_skip(text: str) -> list[str]:
@@ -43,22 +44,16 @@ def parse_skip(text: str) -> list[str]:
     return [task.strip() for task in matches[-1].split(",")]
 
 
-def _triage_tasks(config: Config, comparison_id: str, meta: dict, change: str) -> list[str]:
+def _triage_tasks(config: Config, comparison_id: str, meta: dict, spec: str) -> list[str]:
     """Runs the task triage on the judge model and writes its reasoning to task-triage.md."""
     run_dir = config.workspace / comparison_id
-    tasks = subprocess.run(
-        ["git", "show", f"{meta['snapshot_tag']}:openspec/changes/{change}/tasks.md"],
-        cwd=run_dir / ARMS[0] / "repo",
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
+    description = spec_text(run_dir / ARMS[0] / "repo", meta["snapshot_tag"], spec)
     env = {**os.environ, "CLAUDE_CONFIG_DIR": str(run_dir / "judge-config")}
     command = ["claude", "-p", "--model", config.judge_model, "--output-format", "text"]
     with tempfile.TemporaryDirectory() as empty:
         result = subprocess.run(
             command,
-            input=f"{TRIAGE_PROMPT.read_text()}\n# Task list\n\n{tasks}",
+            input=f"{TRIAGE_PROMPT.read_text()}\n# Feature description\n\n{description}",
             cwd=empty,
             env=env,
             capture_output=True,
@@ -109,22 +104,22 @@ def _run_arm(config: Config, comparison_id: str, arm: str, text: str) -> int:
 def run(
     config: Config,
     comparison_id: str,
-    change: str,
+    spec: str,
     rng: random.Random | None = None,
 ) -> list[str]:
-    """Runs both arms and records the order, the change and the skipped tasks in meta.json.
+    """Runs both arms and records the order, the spec and the skipped tasks in meta.json.
 
     Returns the order.
     """
     meta_path = config.comparisons / comparison_id / "meta.json"
     meta = json.loads(meta_path.read_text())
-    skip_tasks = _triage_tasks(config, comparison_id, meta, change)
+    skip_tasks = _triage_tasks(config, comparison_id, meta, spec)
     print(f"skipped tasks: {', '.join(skip_tasks) or 'none'}")
     order = list(ARMS)
     (rng or random.SystemRandom()).shuffle(order)
-    meta.update(change=change, skip_tasks=skip_tasks, arm_model=config.arm_model, run_order=order)
+    meta.update(spec=spec, skip_tasks=skip_tasks, arm_model=config.arm_model, run_order=order)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     for arm in order:
-        returncode = _run_arm(config, comparison_id, arm, prompt(change, skip_tasks))
+        returncode = _run_arm(config, comparison_id, arm, prompt(spec, skip_tasks))
         print(f"arm {arm}: claude exited with {returncode}")
     return order
