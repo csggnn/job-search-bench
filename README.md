@@ -96,9 +96,13 @@ Each arm runs `claude -p "Implement the feature described in <path> ..." --plugi
 <arm>/plugin` on the model in `bench.toml`, in random order. The prompt names no tool. The
 target repo's instructions and skills select the workflow, e.g. job-search-agent's
 `CLAUDE.md` selects `/openspec-apply-change` for a path under `openspec/changes/`. The
-prompt asks the agent to commit its work. The
-transcript and stderr go to the arm's workspace dir. Containers the agent started are
-stopped after each arm.
+prompt asks the agent to commit its work. The transcript and stderr go to the arm's
+workspace dir. Containers the agent started are stopped after each arm.
+
+The description is anchored, not fixed. The prompt allows an arm to change the spec or
+design where the change makes the code simpler and keeps the feature's purpose. The arm
+then updates the description files to match the code, and its diff shows the change. The
+judge accepts such a change when the feature keeps its purpose.
 
 Before the arms run, the judge model reads the feature description with
 `bench/instruments/task-triage.md` and names the tasks a headless arm cannot perform:

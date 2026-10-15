@@ -23,6 +23,9 @@ SKIP_RE = re.compile(r"^SKIP:\s*(.+?)\s*$", re.MULTILINE)
 
 PROMPT = (
     "Implement the feature described in `{spec}`{skip}. "
+    "The description is anchored, not fixed: change its spec or design where the change "
+    "makes the code simpler and keeps the feature's purpose, and update the description "
+    "files to match the code. "
     "Then commit all changes on the current branch."
 )
 SKIP = ", except tasks {tasks}: leave them undone and unchecked"
