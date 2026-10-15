@@ -1,1 +1,1 @@
-comparison_id,date,feature,snapshot_tag,arm,setup,setup_sha,model,claude_code_version,lines_changed,files_touched,cognitive_total,cognitive_worst,sonar_cognitive,triage_flagged_lines,coderabbit_actionable,nudges,turns,cost_usd,manual_test_pass,judge_preferred,shipped
+comparison_id,date,feature,snapshot_tag,arm,setup,setup_sha,model,claude_code_version,lines_changed,files_touched,cognitive_total,cognitive_worst,sonar_cognitive,triage_flagged_lines,coderabbit_actionable,nudges,skills_used,turns,cost_usd,manual_test_pass,judge_preferred,shipped
