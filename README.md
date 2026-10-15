@@ -33,7 +33,7 @@ comparisons/<date>-<feature>/
 
 The workspace (`~/bench-runs` by default) is outside this repo. It holds, per comparison,
 the arm clones, the per-arm plugin clones and Claude config dirs, and `mapping.json` (X/Y to
-setup label). `mapping.json` stays unread until scoring.
+setup label).
 
 Session transcripts and logs are written to the workspace. `.gitignore` also excludes them
 from this repo.
@@ -57,8 +57,8 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
    ```
    bench prepare bench/<feature> <sha>:<label> <sha>:<label>
    ```
-   The two labels differ. `meta.json` records them as `setups` (label to SHA). For each arm
-   X and Y, with the setups assigned at random, this:
+   The two labels differ. Arm X gets the first setup and arm Y the second. `meta.json`
+   records them as `setups` (label to SHA). For each arm, this:
    - clones the snapshot tag with `git clone --no-local` and removes the remote,
    - creates the default branch at the tag and checks out the work branch
      `work/<feature>`,

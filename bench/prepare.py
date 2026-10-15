@@ -4,13 +4,12 @@ Each arm gets a fresh clone of the snapshot with no remote, the default branch a
 snapshot and a work branch checked out, a clone of the setup plugin at the arm's SHA, and a
 Claude Code config dir. The config dir holds the pinned arm settings and a snapshot of the
 user-level files listed in bench.toml, identical for both arms.
-Arms are labelled X and Y; the mapping from arm to setup label is written to the
-workspace and stays out of the comparison folder until scoring.
+Arm X gets the first setup and arm Y the second. The mapping from arm to setup label is
+written to the workspace.
 """
 
 import hashlib
 import json
-import random
 import shutil
 import stat
 import subprocess
@@ -166,11 +165,10 @@ def prepare(
     tag: str,
     setups: dict[str, str],
     today: date | None = None,
-    rng: random.Random | None = None,
 ) -> str:
     """Creates both arms and the comparison folder. Returns the comparison id.
 
-    setups maps a label to a setup commit, one entry per arm.
+    setups maps a label to a setup commit, one entry per arm, in arm order.
     """
     if len(setups) != len(ARMS):
         raise ValueError(f"expected {len(ARMS)} setups with distinct labels: {setups}")
@@ -184,9 +182,7 @@ def prepare(
         if path.exists():
             raise FileExistsError(path)
 
-    labels = list(setups)
-    (rng or random.SystemRandom()).shuffle(labels)
-    mapping = dict(zip(ARMS, labels, strict=True))
+    mapping = dict(zip(ARMS, setups, strict=True))
     user_config = _snapshot_user_config(config)
 
     run_dir.mkdir(parents=True)

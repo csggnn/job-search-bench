@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import os
-import random
 import subprocess
 import tempfile
 import unittest
@@ -85,13 +84,12 @@ class PrepareTest(unittest.TestCase):
             "bench/feat",
             self.setups,
             today=date(2026, 10, 13),
-            rng=random.Random(0),
         )
 
         self.assertEqual(comparison_id, "2026-10-13-feat")
         run_dir = self.config.workspace / comparison_id
         mapping = json.loads((run_dir / "mapping.json").read_text())
-        self.assertEqual(sorted(mapping.values()), ["base", "hook"])
+        self.assertEqual(mapping, {"X": "base", "Y": "hook"})
         for arm, label in mapping.items():
             repo = run_dir / arm / "repo"
             self.assertEqual(git("remote", cwd=repo), "")
