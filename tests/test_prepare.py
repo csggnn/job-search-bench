@@ -110,10 +110,6 @@ class PrepareTest(unittest.TestCase):
             self.assertNotIn("model", settings)
             command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
             self.assertEqual(command, f"bash {claude_config}/hooks/check.sh")
-            self.assertIn(
-                f"Bash({run_dir / arm / 'plugin'}/skills/*/scripts/*)",
-                settings["permissions"]["allow"],
-            )
             env_sh = (run_dir / arm / "env.sh").read_text()
             self.assertIn(f"COMPOSE_PROJECT_NAME=bench-2026-10-13-feat-{arm.lower()}", env_sh)
             self.assertIn(f"--plugin-dir {run_dir / arm / 'plugin'}", env_sh)
@@ -125,6 +121,7 @@ class PrepareTest(unittest.TestCase):
         meta = json.loads((comparison_dir / "meta.json").read_text())
         self.assertEqual(meta["setup_repo"], self.config.setup_repo)
         self.assertEqual(len(meta["user_config_sha256"]), 64)
+        self.assertTrue(meta["complexipy_version"])
 
     def test_missing_user_config_path_fails(self) -> None:
         config = dataclasses.replace(self.config, user_config_paths=("absent",))

@@ -22,12 +22,14 @@ Specification: Linear CSG-76 (GitHub issue
 ```
 bench.toml                       # target repo, setup repo, user config snapshot, workspace, models
 bench/                           # the `bench` command
-  arm-settings.json              # pinned Claude settings of every arm
-  judge.md                       # pinned judge prompt
-scripts/complexipy.sh            # pinned complexity checker
+  instruments/                   # fixed inputs of every comparison, never part of a candidate
+    arm-settings.json            # Claude settings of every arm
+    judge.md                     # judge prompt
+pyproject.toml, uv.lock          # pinned dependencies: complexipy measures the arms, ruff lints
+                                 # this repo
 results.csv                      # one row per arm per comparison
 comparisons/<date>-<feature>/
-  meta.json                      # snapshot tag, champion and candidate SHAs, Claude Code version
+  meta.json                      # snapshot tag, SHAs, Claude Code and complexipy versions
   qa-log.md                      # nudges: questions and answers
   summary.md                     # generated draft + notes and decision
   metrics/                       # per-arm scores and raw tool output
@@ -43,11 +45,14 @@ committed.
 
 ## Usage
 
-Requires Python 3.11+, git, Claude Code, rootless podman and podman-compose.
+Requires [uv](https://docs.astral.sh/uv/), git, Claude Code, rootless podman and
+podman-compose. podman runs each arm's unit tests in the arm's own container.
 
 ```
-pip install -e .
+uv sync
 ```
+
+Run commands as `uv run bench <command>`, or activate `.venv` first.
 
 ### Prepare a comparison
 
@@ -62,8 +67,8 @@ pip install -e .
      `work/<feature>`,
    - clones the setup plugin into `plugin/` and checks out the arm's SHA,
    - creates a Claude config dir with the user config snapshot and
-     `bench/arm-settings.json`: auto memory off, edits accepted, a fixed allowlist of
-     commands, and the plugin's skill scripts,
+     `bench/instruments/arm-settings.json`: auto memory off, edits accepted, and a fixed
+     allowlist of commands,
    - writes `env.sh`, which sets `CLAUDE_CONFIG_DIR` and a per-arm
      `COMPOSE_PROJECT_NAME`, aliases `claude` to load the arm's plugin, and enters the
      clone.
@@ -107,12 +112,12 @@ Per arm, measured on the arm's `HEAD` against the snapshot tag:
 | Metric | Source |
 | -- | -- |
 | `lines_changed`, `files_touched` | `git diff --numstat` |
-| `cognitive_total`, `cognitive_worst` | `scripts/complexipy.sh` on the changed Python files, every function in them |
+| `cognitive_total`, `cognitive_worst` | complexipy, from the bench's locked environment, on the changed Python files, every function in them |
 | `unit_tests_pass` | `tests/unit` in the arm's `job-search` container |
 | `turns`, `cost_usd`, `model` | the transcript's `result` and `init` messages |
 | `nudges` | rows of `qa-log.md` for the arm |
 
-The judge runs `bench/judge.md` on the judge model with the OpenSpec change and both diffs,
+The judge runs `bench/instruments/judge.md` on the judge model with the OpenSpec change and both diffs,
 labelled X and Y, in an empty directory with its own config dir.
 
 `score` writes `metrics/<arm>.json`, `metrics/complexipy-<arm>.txt`,
@@ -154,6 +159,8 @@ generator.
 ## Development
 
 ```
-python3 -m unittest discover -s tests -t .
-scripts/ruff.sh check . && scripts/ruff.sh format --check .
+uv run python -m unittest discover -s tests -t .
+uv run ruff check . && uv run ruff format --check .
 ```
+
+CI runs the same checks on every pull request and on pushes to `main`.

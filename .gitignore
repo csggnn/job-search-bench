@@ -9,6 +9,7 @@ __pycache__/
 *.egg-info/
 .ruff_cache/
 .complexipy_cache/
+.venv/
 
 # Local-only tool permission overrides
 .claude/settings.local.json

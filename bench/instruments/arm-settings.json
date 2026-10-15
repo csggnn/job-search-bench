@@ -8,6 +8,7 @@
       "Bash(scripts/ruff.sh:*)",
       "Bash(scripts/export_diagram.sh:*)",
       "Bash(openspec:*)",
+      "Bash(uvx complexipy:*)",
       "Bash(git:*)",
       "Bash(curl:*)",
       "Bash(python3:*)",
