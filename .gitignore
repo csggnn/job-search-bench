@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 .ruff_cache/
+.complexipy_cache/
 
 # Local-only tool permission overrides
 .claude/settings.local.json
