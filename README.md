@@ -86,13 +86,17 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
 Headless:
 
 ```
-bench run <comparison> --change <openspec-change>
+bench run <comparison> --change <openspec-change> [--skip-task <id> ...]
 ```
 
 Each arm runs `claude -p "/openspec-apply-change <change> ..." --plugin-dir <arm>/plugin`
 on the model in `bench.toml`, in random order. The prompt asks the agent to commit its work. The
 transcript and stderr go to the arm's workspace dir. Containers the agent started are
 stopped after each arm.
+
+`--skip-task` names a task that needs resources an arm lacks, such as personal data in
+`data/` or paid API calls. The prompt tells both arms to leave it undone and unchecked.
+`meta.json` records the list as `skip_tasks`.
 
 Interactive: in each arm, `source <workspace>/<comparison>/<arm>/env.sh && claude`. Do
 not use `--continue` or `--resume`. An interactive run writes no `transcript.jsonl`, so

@@ -15,11 +15,19 @@ from bench.prepare import ARMS, arm_env, plugin_dir
 
 PROMPT = (
     "/openspec-apply-change {change}\n\n"
-    "Complete every task of the change. Then commit all changes on the current branch."
+    "Complete every task of the change{skip}. Then commit all changes on the current branch."
 )
+# Tasks that need resources an arm lacks, such as personal data or paid API calls.
+SKIP = ", except tasks {tasks}: leave them undone and unchecked"
 
 
-def _run_arm(config: Config, comparison_id: str, arm: str, change: str) -> int:
+def prompt(change: str, skip_tasks: list[str]) -> str:
+    """The prompt of both arms."""
+    skip = SKIP.format(tasks=", ".join(skip_tasks)) if skip_tasks else ""
+    return PROMPT.format(change=change, skip=skip)
+
+
+def _run_arm(config: Config, comparison_id: str, arm: str, text: str) -> int:
     arm_dir = config.workspace / comparison_id / arm
     transcript = arm_dir / "transcript.jsonl"
     if transcript.exists():
@@ -29,7 +37,7 @@ def _run_arm(config: Config, comparison_id: str, arm: str, change: str) -> int:
     command = [
         "claude",
         "-p",
-        PROMPT.format(change=change),
+        text,
         "--model",
         config.arm_model,
         "--plugin-dir",
@@ -56,16 +64,24 @@ def _run_arm(config: Config, comparison_id: str, arm: str, change: str) -> int:
 
 
 def run(
-    config: Config, comparison_id: str, change: str, rng: random.Random | None = None
+    config: Config,
+    comparison_id: str,
+    change: str,
+    skip_tasks: list[str] | None = None,
+    rng: random.Random | None = None,
 ) -> list[str]:
-    """Runs both arms and records the order and the change in meta.json. Returns the order."""
+    """Runs both arms and records the order, the change and the skipped tasks in meta.json.
+
+    Returns the order.
+    """
+    skip_tasks = skip_tasks or []
     meta_path = config.comparisons / comparison_id / "meta.json"
     meta = json.loads(meta_path.read_text())
     order = list(ARMS)
     (rng or random.SystemRandom()).shuffle(order)
-    meta.update(change=change, arm_model=config.arm_model, run_order=order)
+    meta.update(change=change, skip_tasks=skip_tasks, arm_model=config.arm_model, run_order=order)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     for arm in order:
-        returncode = _run_arm(config, comparison_id, arm, change)
+        returncode = _run_arm(config, comparison_id, arm, prompt(change, skip_tasks))
         print(f"arm {arm}: claude exited with {returncode}")
     return order

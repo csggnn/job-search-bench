@@ -26,6 +26,13 @@ def main() -> None:
     run_parser = commands.add_parser("run", help="run code generation headless in both arms")
     run_parser.add_argument("comparison", help="comparison id")
     run_parser.add_argument("--change", required=True, help="OpenSpec change to apply")
+    run_parser.add_argument(
+        "--skip-task",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="task the arms leave undone, e.g. 5.2; repeatable",
+    )
 
     score_parser = commands.add_parser("score", help="score both arms and write the results")
     score_parser.add_argument("comparison", help="comparison id")
@@ -43,7 +50,7 @@ def main() -> None:
             print(f"arm {arm}: source {run_dir / arm / 'env.sh'} && claude")
         print(f"judge: CLAUDE_CONFIG_DIR={run_dir / 'judge-config'} claude")
     elif args.command == "run":
-        run(config, args.comparison, args.change)
+        run(config, args.comparison, args.change, args.skip_task)
     else:
         for metrics in score(config, args.comparison):
             print(f"arm {metrics.arm}: {metrics.setup}")
