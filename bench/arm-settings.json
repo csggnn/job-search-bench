@@ -7,7 +7,6 @@
       "Bash(podman:*)",
       "Bash(scripts/ruff.sh:*)",
       "Bash(scripts/export_diagram.sh:*)",
-      "Bash(.setup/scripts/*)",
       "Bash(openspec:*)",
       "Bash(git:*)",
       "Bash(curl:*)",

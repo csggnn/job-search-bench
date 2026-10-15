@@ -10,8 +10,11 @@ BENCH_ROOT = Path(__file__).resolve().parent.parent
 @dataclass(frozen=True)
 class Config:
     target_repo: str
-    setup_path: str
     default_branch: str
+    setup_repo: str
+    user_config_source: Path
+    user_config_paths: tuple[str, ...]
+    user_config_settings_keys: tuple[str, ...]
     workspace: Path
     comparisons: Path
     arm_model: str
@@ -22,8 +25,11 @@ def load_config(path: Path = BENCH_ROOT / "bench.toml") -> Config:
     data = tomllib.loads(path.read_text())
     return Config(
         target_repo=data["target"]["repo"],
-        setup_path=data["target"]["setup_path"],
         default_branch=data["target"]["default_branch"],
+        setup_repo=data["setup"]["repo"],
+        user_config_source=Path(data["user_config"]["source"]).expanduser(),
+        user_config_paths=tuple(data["user_config"]["paths"]),
+        user_config_settings_keys=tuple(data["user_config"]["settings_keys"]),
         workspace=Path(data["workspace"]["root"]).expanduser(),
         comparisons=BENCH_ROOT / "comparisons",
         arm_model=data["models"]["arm"],
