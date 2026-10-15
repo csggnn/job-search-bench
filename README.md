@@ -13,14 +13,14 @@ Specification: Linear CSG-76 (GitHub issue
 
 | Repo | Holds |
 | -- | -- |
-| Setup repo | Generic layer: skills, `CLAUDE.generic.md`, `ruff-base.toml`, complexipy config, minimum tool versions. `main` is the champion. Candidates are short-lived branches. |
-| job-search-agent | The product and the project layer. Consumes the setup as submodule `.setup/` pinned to a SHA. |
+| [simplicity-rules](https://github.com/csggnn/simplicity-rules) | The setup under evaluation: a Claude Code plugin with skills, hooks and agents. `main` is the champion. Candidates are short-lived branches. |
+| job-search-agent | The product and the project layer. It has no dependency on the setup. |
 | job-search-bench (this repo) | `prepare` and `score` commands, pinned review-triage agent, judge prompt, `results.csv`, one folder per comparison, report generator. |
 
 ## Layout
 
 ```
-bench.toml                       # target repo, setup path, default branch, workspace, models
+bench.toml                       # target repo, setup repo, user config snapshot, workspace, models
 bench/                           # the `bench` command
   arm-settings.json              # pinned Claude settings of every arm
   judge.md                       # pinned judge prompt
@@ -35,7 +35,7 @@ report/                          # generated charts and setup changelog
 ```
 
 The workspace (`~/bench-runs` by default) is outside this repo. It holds, per comparison,
-the arm clones, the per-arm Claude config dirs and `mapping.json` (X/Y to
+the arm clones, the per-arm plugin clones and Claude config dirs, and `mapping.json` (X/Y to
 champion/candidate). `mapping.json` stays unread until scoring.
 
 Raw session transcripts and logs are gitignored. Only counts and scrubbed summaries are
@@ -58,13 +58,22 @@ pip install -e .
    ```
    For each arm X and Y, with the labels assigned at random, this:
    - clones the snapshot tag with `git clone --no-local` and removes the remote,
-   - checks out the setup submodule at the arm's SHA,
    - creates the default branch at the tag and checks out the work branch
      `work/<feature>`,
-   - creates a Claude config dir holding only `bench/arm-settings.json`: auto memory off,
-     edits accepted, and a fixed allowlist of commands,
+   - clones the setup plugin into `plugin/` and checks out the arm's SHA,
+   - creates a Claude config dir with the user config snapshot and
+     `bench/arm-settings.json`: auto memory off, edits accepted, a fixed allowlist of
+     commands, and the plugin's skill scripts,
    - writes `env.sh`, which sets `CLAUDE_CONFIG_DIR` and a per-arm
-     `COMPOSE_PROJECT_NAME`, and enters the clone.
+     `COMPOSE_PROJECT_NAME`, defines a `claude` shell function that loads the arm's plugin,
+     and enters the clone.
+
+   The user config snapshot is taken once and copied into both arms. It holds the paths in
+   `[user_config]` of `bench.toml`, relative to `~/.claude`, and the listed keys of
+   `~/.claude/settings.json`. Paths in those settings that point into `~/.claude`, such as
+   hook commands, point into the arm's config dir. Auto memory, session history,
+   credentials and installed plugins are not copied. `meta.json` records the snapshot's
+   SHA-256 as `user_config_sha256`.
 
    It also creates the judge's config dir, and `comparisons/<date>-<feature>/` with
    `meta.json` and an empty `qa-log.md`.
@@ -79,8 +88,8 @@ Headless:
 bench run <comparison> --change <openspec-change>
 ```
 
-Each arm runs `claude -p "/openspec-apply-change <change> ..."` on the model in
-`bench.toml`, in random order. The prompt asks the agent to commit its work. The
+Each arm runs `claude -p "/openspec-apply-change <change> ..." --plugin-dir <arm>/plugin`
+on the model in `bench.toml`, in random order. The prompt asks the agent to commit its work. The
 transcript and stderr go to the arm's workspace dir. Containers the agent started are
 stopped after each arm.
 
@@ -116,8 +125,9 @@ arm, adds the X/Y mapping to `meta.json` and writes a draft `summary.md`.
   answer is "not specified, use your judgment". Log every question and answer in
   `qa-log.md` and reuse answers word for word across arms.
 - Run both arms before reading either output. Alternate arm order across features.
-- Candidates change only the generic layer. A needed project change lands on
+- Candidates change only the setup plugin. A needed project change lands on
   job-search-agent `main` before the snapshot tag.
+- Comparisons are comparable only at the same `user_config_sha256`.
 
 ## Decision rule
 

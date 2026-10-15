@@ -1,10 +1,19 @@
 # Repository under evaluation. Arm clones are made from it.
 [target]
 repo = "git@github.com:csggnn/job-search-agent.git"
-# Path of the setup submodule inside the target repo.
-setup_path = ".setup"
 # Branch the snapshot tag belongs to. Each arm has it as a local branch at the tag.
 default_branch = "master"
+
+# The Claude Code plugin under evaluation. Each arm loads it at the arm's commit.
+[setup]
+repo = "https://github.com/csggnn/simplicity-rules.git"
+
+# User-level Claude Code files copied into every arm's config dir, identical for both arms.
+# Paths are relative to source. settings_keys are the keys taken from source/settings.json.
+[user_config]
+source = "~/.claude"
+paths = ["CLAUDE.md", "skills/open-issue", "commands", "hooks"]
+settings_keys = ["hooks"]
 
 # Arm clones, per-arm Claude config dirs and the hidden X/Y mapping live here,
 # outside the bench repo.

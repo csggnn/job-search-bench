@@ -1,8 +1,8 @@
 """Runs code generation headless in each arm of a prepared comparison.
 
-Each arm runs `claude -p` with the same prompt, in its own clone and config dir. The arms
-run one after the other, in random order. The stream-json transcript and stderr go to the
-arm's workspace dir, outside the bench repo.
+Each arm runs `claude -p` with the same prompt, in its own clone and config dir, with its
+own version of the setup plugin. The arms run one after the other, in random order. The
+stream-json transcript and stderr go to the arm's workspace dir, outside the bench repo.
 """
 
 import json
@@ -11,7 +11,7 @@ import random
 import subprocess
 
 from bench.config import Config
-from bench.prepare import ARMS, arm_env
+from bench.prepare import ARMS, arm_env, plugin_dir
 
 PROMPT = (
     "/openspec-apply-change {change}\n\n"
@@ -32,6 +32,8 @@ def _run_arm(config: Config, comparison_id: str, arm: str, change: str) -> int:
         PROMPT.format(change=change),
         "--model",
         config.arm_model,
+        "--plugin-dir",
+        str(plugin_dir(arm_dir)),
         "--output-format",
         "stream-json",
         "--verbose",

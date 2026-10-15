@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import os
 import random
@@ -11,11 +12,7 @@ from unittest import mock
 from bench.config import Config
 from bench.prepare import prepare
 
-# Local submodule URLs need the file protocol, which git blocks by default.
 GIT_ENV = {
-    "GIT_CONFIG_COUNT": "1",
-    "GIT_CONFIG_KEY_0": "protocol.file.allow",
-    "GIT_CONFIG_VALUE_0": "always",
     "GIT_AUTHOR_NAME": "test",
     "GIT_AUTHOR_EMAIL": "test@example.com",
     "GIT_COMMITTER_NAME": "test",
@@ -47,23 +44,34 @@ class PrepareTest(unittest.TestCase):
         setup = self.root / "setup"
         setup.mkdir()
         git("init", "-b", "main", cwd=setup)
-        self.champion = commit(setup, "CLAUDE.generic.md", "champion")
+        self.champion = commit(setup, "rules.md", "champion")
         git("checkout", "-b", "candidate", cwd=setup)
-        self.candidate = commit(setup, "CLAUDE.generic.md", "candidate")
+        self.candidate = commit(setup, "rules.md", "candidate")
         git("checkout", "main", cwd=setup)
 
         target = self.root / "target"
         target.mkdir()
         git("init", "-b", "main", cwd=target)
         commit(target, "README.md", "product")
-        git("submodule", "add", str(setup), ".setup", cwd=target)
-        git("commit", "-m", "add setup", cwd=target)
         git("tag", "bench/feat", cwd=target)
+
+        self.user = self.root / "user-claude"
+        (self.user / "hooks").mkdir(parents=True)
+        (self.user / "CLAUDE.md").write_text("user rules")
+        (self.user / "hooks" / "check.sh").write_text("#!/bin/sh\n")
+        (self.user / "hooks" / "check.sh").chmod(0o755)
+        (self.user / "history.jsonl").write_text("not copied")
+        hook = {"type": "command", "command": f"bash {self.user}/hooks/check.sh"}
+        user_settings = {"hooks": {"PreToolUse": [{"hooks": [hook]}]}, "model": "not copied"}
+        (self.user / "settings.json").write_text(json.dumps(user_settings))
 
         self.config = Config(
             target_repo=str(target),
-            setup_path=".setup",
             default_branch="main",
+            setup_repo=str(setup),
+            user_config_source=self.user,
+            user_config_paths=("CLAUDE.md", "hooks"),
+            user_config_settings_keys=("hooks",),
             workspace=self.root / "runs",
             comparisons=self.root / "comparisons",
             arm_model="arm-model",
@@ -88,20 +96,40 @@ class PrepareTest(unittest.TestCase):
         for arm, role in mapping.items():
             repo = run_dir / arm / "repo"
             self.assertEqual(git("remote", cwd=repo), "")
-            self.assertEqual(git("rev-parse", "HEAD", cwd=repo / ".setup"), expected[role])
+            self.assertEqual(git("rev-parse", "HEAD", cwd=run_dir / arm / "plugin"), expected[role])
             self.assertEqual(git("branch", "--show-current", cwd=repo), "work/feat")
             self.assertEqual(
                 git("rev-parse", "main", cwd=repo), git("rev-parse", "bench/feat", cwd=repo)
             )
-            settings = json.loads((run_dir / arm / "claude-config" / "settings.json").read_text())
+            claude_config = run_dir / arm / "claude-config"
+            self.assertEqual((claude_config / "CLAUDE.md").read_text(), "user rules")
+            self.assertTrue(os.access(claude_config / "hooks" / "check.sh", os.X_OK))
+            self.assertFalse((claude_config / "history.jsonl").exists())
+            settings = json.loads((claude_config / "settings.json").read_text())
             self.assertFalse(settings["autoMemoryEnabled"])
+            self.assertNotIn("model", settings)
+            command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            self.assertEqual(command, f"bash {claude_config}/hooks/check.sh")
+            self.assertIn(
+                f"Bash({run_dir / arm / 'plugin'}/skills/*/scripts/*)",
+                settings["permissions"]["allow"],
+            )
             env_sh = (run_dir / arm / "env.sh").read_text()
             self.assertIn(f"COMPOSE_PROJECT_NAME=bench-2026-10-13-feat-{arm.lower()}", env_sh)
+            self.assertIn(f"--plugin-dir {run_dir / arm / 'plugin'}", env_sh)
         self.assertTrue((run_dir / "judge-config" / "settings.json").is_file())
 
         comparison_dir = self.config.comparisons / comparison_id
         self.assertTrue((comparison_dir / "qa-log.md").is_file())
         self.assertTrue((comparison_dir / "metrics").is_dir())
+        meta = json.loads((comparison_dir / "meta.json").read_text())
+        self.assertEqual(meta["setup_repo"], self.config.setup_repo)
+        self.assertEqual(len(meta["user_config_sha256"]), 64)
+
+    def test_missing_user_config_path_fails(self) -> None:
+        config = dataclasses.replace(self.config, user_config_paths=("absent",))
+        with self.assertRaises(FileNotFoundError):
+            prepare(config, "bench/feat", self.champion, self.candidate)
 
     def test_rejects_tag_without_prefix(self) -> None:
         with self.assertRaises(ValueError):

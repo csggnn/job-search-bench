@@ -15,8 +15,11 @@ class RunTest(unittest.TestCase):
             root = Path(tmp)
             config = Config(
                 target_repo="unused",
-                setup_path=".setup",
                 default_branch="main",
+                setup_repo="unused",
+                user_config_source=root / "user-claude",
+                user_config_paths=(),
+                user_config_settings_keys=(),
                 workspace=root / "runs",
                 comparisons=root / "comparisons",
                 arm_model="arm-model",
@@ -39,6 +42,9 @@ class RunTest(unittest.TestCase):
             for call, arm in zip(claude_calls, order, strict=True):
                 self.assertIn("/openspec-apply-change add-feat", call.args[0][2])
                 self.assertEqual(call.kwargs["cwd"], config.workspace / "c1" / arm / "repo")
+                plugin = str(config.workspace / "c1" / arm / "plugin")
+                args = call.args[0]
+                self.assertEqual(args[args.index("--plugin-dir") + 1], plugin)
                 self.assertEqual(
                     call.kwargs["env"]["CLAUDE_CONFIG_DIR"],
                     str(config.workspace / "c1" / arm / "claude-config"),
