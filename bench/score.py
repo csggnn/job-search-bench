@@ -11,6 +11,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -19,8 +20,9 @@ from bench.config import BENCH_ROOT, Config
 from bench.prepare import ARMS, arm_env
 
 RESULTS_CSV = BENCH_ROOT / "results.csv"
-COMPLEXIPY = BENCH_ROOT / "scripts" / "complexipy.sh"
-JUDGE_PROMPT = BENCH_ROOT / "bench" / "judge.md"
+# complexipy is a dependency of the bench, installed next to the running interpreter.
+COMPLEXIPY = Path(sys.executable).parent / "complexipy"
+JUDGE_PROMPT = BENCH_ROOT / "bench" / "instruments" / "judge.md"
 UNIT_TESTS = ["python3", "-m", "unittest", "discover", "-s", "tests/unit"]
 PREFERRED_RE = re.compile(r"^PREFERRED:\s*(X|Y|TIE)\s*$", re.MULTILINE)
 
@@ -79,7 +81,7 @@ def _complexity(repo: Path, tag: str, raw_path: Path) -> tuple[int, int]:
         return 0, 0
     # Exit status 1 means a function exceeds complexipy's default limit; the output is valid.
     result = subprocess.run(
-        [str(COMPLEXIPY), *changed, "--plain", "--sort", "desc"],
+        [str(COMPLEXIPY), *changed, "--plain", "--sort", "desc", "--color", "no"],
         cwd=repo,
         capture_output=True,
         text=True,

@@ -16,6 +16,7 @@ import stat
 import subprocess
 from dataclasses import dataclass
 from datetime import date
+from importlib.metadata import version
 from pathlib import Path
 
 from bench.config import BENCH_ROOT, Config
@@ -25,7 +26,7 @@ ROLES = ("champion", "candidate")
 TAG_PREFIX = "bench/"
 WORK_BRANCH_PREFIX = "work/"
 # Auto memory off, permissions for headless runs. Pinned here, identical for both arms.
-ARM_SETTINGS = BENCH_ROOT / "bench" / "arm-settings.json"
+ARM_SETTINGS = BENCH_ROOT / "bench" / "instruments" / "arm-settings.json"
 
 
 @dataclass(frozen=True)
@@ -123,7 +124,6 @@ def _write_claude_config(config: Config, user_config: UserConfig, arm_dir: Path)
     relocated = _relocate(user_config.settings, config.user_config_source, claude_config)
     for key, value in relocated.items():
         settings.setdefault(key, value)
-    settings["permissions"]["allow"].append(f"Bash({plugin_dir(arm_dir)}/skills/*/scripts/*)")
     (claude_config / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
 
 
@@ -203,6 +203,7 @@ def prepare(
         "setup_repo": config.setup_repo,
         "user_config_sha256": user_config.sha256,
         "claude_code_version": _claude_code_version(),
+        "complexipy_version": version("complexipy"),
         "workspace": str(run_dir),
     }
     (comparison_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
