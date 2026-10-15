@@ -6,8 +6,8 @@ that Claude Code setup by having each implement the same feature of
 [job-search-agent](https://github.com/csggnn/job-search-agent) and scoring the resulting
 code.
 
-The two versions are given as simplicity-rules commits, the champion SHA and the candidate
-SHA. Both arms start from the same job-search-agent commit, which holds the spec documents
+Each version is a simplicity-rules commit with a label that names it, e.g. `main` or
+`cc-hook`. Both arms start from the same job-search-agent commit, which holds the spec documents
 of a real feature.
 Only the code-generation and simplification stage is measured.
 
@@ -18,7 +18,7 @@ Specification: [csggnn/job-search-agent#84](https://github.com/csggnn/job-search
 ```
 bench.toml                       # target repo, setup repo, user config snapshot, workspace, models
 bench/                           # the `bench` command
-  instruments/                   # fixed inputs of every comparison, never part of a candidate
+  instruments/                   # fixed inputs of every comparison, never part of a setup
     arm-settings.json            # Claude settings of every arm
     judge.md                     # judge prompt
 pyproject.toml, uv.lock          # pinned dependencies: complexipy measures the arms, ruff lints
@@ -33,7 +33,7 @@ comparisons/<date>-<feature>/
 
 The workspace (`~/bench-runs` by default) is outside this repo. It holds, per comparison,
 the arm clones, the per-arm plugin clones and Claude config dirs, and `mapping.json` (X/Y to
-champion/candidate). `mapping.json` stays unread until scoring.
+setup label). `mapping.json` stays unread until scoring.
 
 Session transcripts and logs are written to the workspace. `.gitignore` also excludes them
 from this repo.
@@ -55,9 +55,10 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
    `bench/<feature>` and push the tag.
 2. Run:
    ```
-   bench prepare bench/<feature> <champion-sha> <candidate-sha>
+   bench prepare bench/<feature> <sha>:<label> <sha>:<label>
    ```
-   For each arm X and Y, with the labels assigned at random, this:
+   The two labels differ. `meta.json` records them as `setups` (label to SHA). For each arm
+   X and Y, with the setups assigned at random, this:
    - clones the snapshot tag with `git clone --no-local` and removes the remote,
    - creates the default branch at the tag and checks out the work branch
      `work/<feature>`,
@@ -126,18 +127,18 @@ arm, adds the X/Y mapping to `meta.json` and writes a draft `summary.md`.
   answer is "not specified, use your judgment". Log every question and answer in
   `qa-log.md` and reuse answers word for word across arms.
 - Run both arms before reading either output.
-- Candidates change only the setup plugin. A needed project change lands on
+- The two setups differ only in the plugin commit. A needed project change lands on
   the job-search-agent default branch before the snapshot tag.
 - Comparisons are comparable only at the same `user_config_sha256`.
 
 ## results.csv columns
 
-`comparison_id, date, feature, snapshot_tag, arm, role, setup_sha, model,
+`comparison_id, date, feature, snapshot_tag, arm, setup, setup_sha, model,
 claude_code_version, lines_changed, files_touched, cognitive_total, cognitive_worst,
 sonar_cognitive, triage_flagged_lines, coderabbit_actionable, nudges, turns, cost_usd,
-manual_test_pass, judge_preferred, shipped, decision`
+manual_test_pass, judge_preferred, shipped`
 
-`decision` is set on the candidate row.
+`setup` is the label given to `prepare`.
 
 ## Status
 

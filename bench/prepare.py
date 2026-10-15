@@ -4,7 +4,7 @@ Each arm gets a fresh clone of the snapshot with no remote, the default branch a
 snapshot and a work branch checked out, a clone of the setup plugin at the arm's SHA, and a
 Claude Code config dir. The config dir holds the pinned arm settings and a snapshot of the
 user-level files listed in bench.toml, identical for both arms.
-Arms are labelled X and Y; the champion/candidate mapping is written to the
+Arms are labelled X and Y; the mapping from arm to setup label is written to the
 workspace and stays out of the comparison folder until scoring.
 """
 
@@ -22,7 +22,6 @@ from pathlib import Path
 from bench.config import BENCH_ROOT, Config
 
 ARMS = ("X", "Y")
-ROLES = ("champion", "candidate")
 TAG_PREFIX = "bench/"
 WORK_BRANCH_PREFIX = "work/"
 # Auto memory off, permissions for headless runs. Pinned here, identical for both arms.
@@ -152,15 +151,27 @@ def _prepare_arm(
     (arm_dir / "env.sh").write_text(f"{exports}{alias}cd {repo}\n")
 
 
+def parse_setup(text: str) -> tuple[str, str]:
+    """Splits `<sha>:<label>` into (label, sha)."""
+    sha, _, label = text.partition(":")
+    if not sha or not label:
+        raise ValueError(f"setup must be <sha>:<label>: {text}")
+    return label, sha
+
+
 def prepare(
     config: Config,
     tag: str,
-    champion_sha: str,
-    candidate_sha: str,
+    setups: dict[str, str],
     today: date | None = None,
     rng: random.Random | None = None,
 ) -> str:
-    """Creates both arms and the comparison folder. Returns the comparison id."""
+    """Creates both arms and the comparison folder. Returns the comparison id.
+
+    setups maps a label to a setup commit, one entry per arm.
+    """
+    if len(setups) != len(ARMS):
+        raise ValueError(f"expected {len(ARMS)} setups with distinct labels: {setups}")
     if not tag.startswith(TAG_PREFIX):
         raise ValueError(f"snapshot tag must start with {TAG_PREFIX!r}: {tag}")
     feature = tag.removeprefix(TAG_PREFIX)
@@ -171,15 +182,14 @@ def prepare(
         if path.exists():
             raise FileExistsError(path)
 
-    roles = list(ROLES)
-    (rng or random.SystemRandom()).shuffle(roles)
-    mapping = dict(zip(ARMS, roles, strict=True))
-    setup_shas = {"champion": champion_sha, "candidate": candidate_sha}
+    labels = list(setups)
+    (rng or random.SystemRandom()).shuffle(labels)
+    mapping = dict(zip(ARMS, labels, strict=True))
     user_config = _snapshot_user_config(config)
 
     run_dir.mkdir(parents=True)
-    for arm, role in mapping.items():
-        _prepare_arm(config, tag, setup_shas[role], user_config, run_dir / arm)
+    for arm, label in mapping.items():
+        _prepare_arm(config, tag, setups[label], user_config, run_dir / arm)
     (run_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
     # The judge's own config dir, so no user-level guidance or plugin reaches it.
     judge_config = run_dir / "judge-config"
@@ -192,8 +202,7 @@ def prepare(
         "comparison_id": comparison_id,
         "feature": feature,
         "snapshot_tag": tag,
-        "champion_sha": champion_sha,
-        "candidate_sha": candidate_sha,
+        "setups": setups,
         "setup_repo": config.setup_repo,
         "user_config_sha256": user_config.sha256,
         "claude_code_version": _claude_code_version(),
