@@ -13,3 +13,6 @@ __pycache__/
 
 # Local-only tool permission overrides
 .claude/settings.local.json
+
+# Worktrees created by /start-task
+.trees/
