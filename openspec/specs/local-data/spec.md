@@ -6,28 +6,28 @@ Defines where the bench stores the uncommitted files of each comparison and the 
 
 ## Requirements
 
-### Requirement: Default workspace inside the repository
+### Requirement: Workspace inside the repository
 
-The default workspace SHALL be a folder inside the bench repository. Git SHALL ignore that folder and every file below it.
+The workspace SHALL be a fixed folder inside the bench repository. Git SHALL ignore that folder and every file below it.
 
-#### Scenario: Prepare with the default workspace
+#### Scenario: Prepare a comparison
 
-- **WHEN** `bench prepare` runs with the default `bench.toml`
+- **WHEN** `bench prepare` runs
 - **THEN** the comparison's arm folders, `mapping.json` and judge config dir are created inside the bench repository
 - **AND** `git status` in the bench repository lists none of them
 
-#### Scenario: Run and score with the default workspace
+#### Scenario: Run and score a comparison
 
-- **WHEN** `bench run` and `bench score` complete on a comparison in the default workspace
+- **WHEN** `bench run` and `bench score` complete on a comparison in the workspace
 - **THEN** `git status` in the bench repository lists no transcript, log or arm file
 
 ### Requirement: One workspace and one results folder per repository
 
-A relative `[workspace] root` in `bench.toml` SHALL resolve against the root of the bench repository's main checkout. The results folder, holding `results.csv` and the comparison folders, SHALL be a fixed folder under the same root. Both SHALL be the same for the main checkout, for every git worktree of the bench repository, and for any current directory. An absolute workspace root or one starting with `~` SHALL resolve as before.
+The workspace and the results folder, holding `results.csv` and the comparison folders, SHALL be fixed folders under the root of the bench repository's main checkout. Both SHALL be the same for the main checkout, for every git worktree of the bench repository, and for any current directory.
 
 #### Scenario: Command run from a subfolder
 
-- **WHEN** `bench prepare` runs from a subfolder of the main checkout with a relative workspace root
+- **WHEN** `bench prepare` runs from a subfolder of the main checkout
 - **THEN** the comparison's arms and its comparison folder are created under the main checkout root, not under the subfolder
 
 #### Scenario: Command run from a worktree
@@ -42,7 +42,7 @@ A relative `[workspace] root` in `bench.toml` SHALL resolve against the root of 
 
 ### Requirement: Workspace and results in separate folders
 
-The default workspace and the results folder SHALL be sibling folders. Neither SHALL contain the other.
+The workspace and the results folder SHALL be sibling folders. Neither SHALL contain the other.
 
 #### Scenario: Results folder as its own repository
 
@@ -90,9 +90,9 @@ An arm session SHALL NOT load `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md
 
 ### Requirement: Comparisons use their recorded workspace
 
-`bench run` and `bench score` SHALL locate a comparison's arms at the workspace path recorded in the comparison's `meta.json`, independent of the current `[workspace] root`.
+`bench run` and `bench score` SHALL locate a comparison's arms at the workspace path recorded in the comparison's `meta.json`, independent of the current workspace.
 
-#### Scenario: Comparison prepared under the previous default
+#### Scenario: Comparison prepared in another workspace
 
-- **WHEN** a comparison's `meta.json` records a workspace under `~/bench-runs` and `bench.toml` sets an in-repository root
+- **WHEN** a comparison's `meta.json` records a workspace under `~/bench-runs`
 - **THEN** `bench score` on that comparison reads the arms under `~/bench-runs`

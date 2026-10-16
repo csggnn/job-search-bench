@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from bench.config import MAIN_ROOT, load_config, main_checkout_root
+from bench.config import DATA_ROOT, MAIN_ROOT, RUNS_ROOT, load_config, main_checkout_root
 
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "test",
@@ -23,8 +23,6 @@ repo = "unused"
 source = "~/.claude"
 paths = []
 settings_keys = []
-[workspace]
-root = "{root}"
 [models]
 arm = "arm-model"
 judge = "judge-model"
@@ -66,16 +64,11 @@ class LoadConfigTest(unittest.TestCase):
         self.addCleanup(os.chdir, cwd)
         os.chdir(self.root)
 
-    def workspace(self, root: str) -> Path:
+    def test_workspace_and_results_at_the_main_checkout(self) -> None:
         path = self.root / "bench.toml"
-        path.write_text(BENCH_TOML.format(root=root))
-        return load_config(path).workspace
-
-    def test_relative_root_resolves_against_the_main_checkout(self) -> None:
-        self.assertEqual(self.workspace("runs"), MAIN_ROOT / "runs")
-
-    def test_absolute_root(self) -> None:
-        self.assertEqual(self.workspace("/srv/runs"), Path("/srv/runs"))
-
-    def test_home_root(self) -> None:
-        self.assertEqual(self.workspace("~/bench-runs"), Path.home() / "bench-runs")
+        path.write_text(BENCH_TOML)
+        config = load_config(path)
+        self.assertEqual(config.workspace, RUNS_ROOT)
+        self.assertEqual(config.comparisons, DATA_ROOT / "comparisons")
+        self.assertEqual(RUNS_ROOT.parent, MAIN_ROOT)
+        self.assertEqual(DATA_ROOT.parent, MAIN_ROOT)

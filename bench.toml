@@ -15,11 +15,6 @@ source = "~/.claude"
 paths = ["CLAUDE.md", "skills/open-issue", "commands", "hooks"]
 settings_keys = ["hooks"]
 
-# Arm clones, per-arm Claude config dirs and the hidden X/Y mapping live here.
-# A relative root resolves against the main checkout, shared by every worktree.
-[workspace]
-root = "runs"
-
 # The judge runs on a different model than the arms.
 [models]
 arm = "claude-opus-5-5"

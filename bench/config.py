@@ -28,6 +28,8 @@ BENCH_ROOT = Path(__file__).resolve().parent.parent
 MAIN_ROOT = main_checkout_root(BENCH_ROOT)
 # Results of the operator's runs. Gitignored, so the repository holds no results.
 DATA_ROOT = MAIN_ROOT / "data"
+# Workspace: arm clones, Claude config dirs, transcripts and the hidden X/Y mapping. Gitignored.
+RUNS_ROOT = MAIN_ROOT / "runs"
 
 
 @dataclass(frozen=True)
@@ -53,7 +55,7 @@ def load_config(path: Path = BENCH_ROOT / "bench.toml") -> Config:
         user_config_source=Path(data["user_config"]["source"]).expanduser(),
         user_config_paths=tuple(data["user_config"]["paths"]),
         user_config_settings_keys=tuple(data["user_config"]["settings_keys"]),
-        workspace=MAIN_ROOT / Path(data["workspace"]["root"]).expanduser(),
+        workspace=RUNS_ROOT,
         comparisons=DATA_ROOT / "comparisons",
         arm_model=data["models"]["arm"],
         judge_model=data["models"]["judge"],
