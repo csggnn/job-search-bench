@@ -17,11 +17,36 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from bench.config import BENCH_ROOT, Config
-from bench.prepare import ARMS, arm_env
+from bench.config import BENCH_ROOT, DATA_ROOT, Config
+from bench.prepare import ARMS, arm_env, run_dir
 from bench.spec import spec_text
 
-RESULTS_CSV = BENCH_ROOT / "results.csv"
+RESULTS_CSV = DATA_ROOT / "results.csv"
+RESULTS_COLUMNS = (
+    "comparison_id",
+    "date",
+    "feature",
+    "snapshot_tag",
+    "arm",
+    "setup",
+    "setup_sha",
+    "model",
+    "claude_code_version",
+    "lines_changed",
+    "files_touched",
+    "cognitive_total",
+    "cognitive_worst",
+    "sonar_cognitive",
+    "triage_flagged_lines",
+    "coderabbit_actionable",
+    "nudges",
+    "skills_used",
+    "turns",
+    "cost_usd",
+    "manual_test_pass",
+    "judge_preferred",
+    "shipped",
+)
 # complexipy is a dependency of the bench, installed next to the running interpreter.
 COMPLEXIPY = Path(sys.executable).parent / "complexipy"
 JUDGE_PROMPT = BENCH_ROOT / "bench" / "instruments" / "judge.md"
@@ -147,7 +172,7 @@ def count_nudges(qa_log: str, arm: str) -> int:
 
 
 def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: str) -> ArmMetrics:
-    arm_dir = config.workspace / comparison_id / arm
+    arm_dir = run_dir(meta) / arm
     repo = arm_dir / "repo"
     metrics_dir = config.comparisons / comparison_id / "metrics"
     tag = meta["snapshot_tag"]
@@ -172,16 +197,16 @@ def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: 
     )
 
 
-def _judge_input(config: Config, comparison_id: str, meta: dict) -> str:
+def _judge_input(meta: dict) -> str:
     tag = meta["snapshot_tag"]
-    first_repo = config.workspace / comparison_id / ARMS[0] / "repo"
+    first_repo = run_dir(meta) / ARMS[0] / "repo"
     parts = [
         JUDGE_PROMPT.read_text(),
         "# Feature description",
         spec_text(first_repo, tag, meta["spec"]),
     ]
     for arm in ARMS:
-        repo = config.workspace / comparison_id / arm / "repo"
+        repo = run_dir(meta) / arm / "repo"
         diff = _run(["git", "diff", "--text", tag, "HEAD", "--", ".", ":!*.png"], repo)
         parts.append(f"# Implementation {arm}\n\n```diff\n{diff}```")
     return "\n\n".join(parts)
@@ -194,13 +219,12 @@ def parse_verdict(text: str) -> str | None:
 
 def _judge(config: Config, comparison_id: str, meta: dict) -> str | None:
     """Runs the judge in an empty directory with its own config dir. Returns X, Y, TIE or None."""
-    run_dir = config.workspace / comparison_id
-    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(run_dir / "judge-config")}
+    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(run_dir(meta) / "judge-config")}
     command = ["claude", "-p", "--model", config.judge_model, "--output-format", "text"]
     with tempfile.TemporaryDirectory() as empty:
         result = subprocess.run(
             command,
-            input=_judge_input(config, comparison_id, meta),
+            input=_judge_input(meta),
             cwd=empty,
             env=env,
             capture_output=True,
@@ -246,14 +270,17 @@ def results_rows(meta: dict, arms: list[ArmMetrics], verdict: str | None) -> lis
     return rows
 
 
-def _append_results(rows: list[dict], comparison_id: str) -> None:
-    with RESULTS_CSV.open(newline="") as f:
-        reader = csv.DictReader(f)
-        columns = reader.fieldnames
-        if any(row["comparison_id"] == comparison_id for row in reader):
-            raise FileExistsError(f"{comparison_id} is already in {RESULTS_CSV}")
-    with RESULTS_CSV.open("a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns, restval="")
+def append_results(path: Path, rows: list[dict], comparison_id: str) -> None:
+    """Appends rows to the results table at path, creating it with RESULTS_COLUMNS."""
+    if path.exists():
+        with path.open(newline="") as f:
+            if any(row["comparison_id"] == comparison_id for row in csv.DictReader(f)):
+                raise FileExistsError(f"{comparison_id} is already in {path}")
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(",".join(RESULTS_COLUMNS) + "\n")
+    with path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=RESULTS_COLUMNS, restval="")
         writer.writerows(rows)
 
 
@@ -312,7 +339,7 @@ def score(config: Config, comparison_id: str) -> list[ArmMetrics]:
     if (comparison_dir / "summary.md").exists():
         raise FileExistsError(comparison_dir / "summary.md")
     meta = json.loads((comparison_dir / "meta.json").read_text())
-    mapping = json.loads((config.workspace / comparison_id / "mapping.json").read_text())
+    mapping = json.loads((run_dir(meta) / "mapping.json").read_text())
 
     arms = [_score_arm(config, comparison_id, arm, meta, mapping[arm]) for arm in ARMS]
     for metrics in arms:
@@ -321,6 +348,6 @@ def score(config: Config, comparison_id: str) -> list[ArmMetrics]:
     verdict = _judge(config, comparison_id, meta)
     meta.update(judge_model=config.judge_model, mapping=mapping)
     (comparison_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
-    _append_results(results_rows(meta, arms, verdict), comparison_id)
+    append_results(RESULTS_CSV, results_rows(meta, arms, verdict), comparison_id)
     (comparison_dir / "summary.md").write_text(summary_markdown(meta, arms, verdict))
     return arms

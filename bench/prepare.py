@@ -18,7 +18,7 @@ from datetime import date
 from importlib.metadata import version
 from pathlib import Path
 
-from bench.config import BENCH_ROOT, Config
+from bench.config import BENCH_ROOT, MAIN_ROOT, Config
 
 ARMS = ("X", "Y")
 TAG_PREFIX = "bench/"
@@ -68,6 +68,11 @@ def arm_env(arm_dir: Path) -> dict[str, str]:
     }
 
 
+def run_dir(meta: dict) -> Path:
+    """The comparison's folder in the workspace it was prepared in, as recorded in meta.json."""
+    return Path(meta["workspace"])
+
+
 def plugin_dir(arm_dir: Path) -> Path:
     """The setup plugin of one arm, loaded with --plugin-dir."""
     return arm_dir / "plugin"
@@ -109,6 +114,23 @@ def _relocate(settings: dict, source: Path, target: Path) -> dict:
     return json.loads(text)
 
 
+def claude_md_excludes(arm_dir: Path, main_root: Path) -> list[str]:
+    """Instruction files of the folders from arm_dir up to main_root, which arms do not load.
+
+    Claude Code loads CLAUDE.md and .claude/rules/ files from every folder above the
+    session's folder. The list keeps files of the bench repository out of the arm's
+    context. Empty when arm_dir is outside main_root.
+    """
+    if not arm_dir.is_relative_to(main_root):
+        return []
+    folders = [arm_dir, *arm_dir.parents[: len(arm_dir.relative_to(main_root).parts)]]
+    return [
+        str(folder / name)
+        for folder in folders
+        for name in ("CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/rules/**")
+    ]
+
+
 def _write_claude_config(config: Config, user_config: UserConfig, arm_dir: Path) -> None:
     claude_config = arm_dir / "claude-config"
     claude_config.mkdir()
@@ -122,6 +144,7 @@ def _write_claude_config(config: Config, user_config: UserConfig, arm_dir: Path)
     relocated = _relocate(user_config.settings, config.user_config_source, claude_config)
     for key, value in relocated.items():
         settings.setdefault(key, value)
+    settings["claudeMdExcludes"] = claude_md_excludes(arm_dir, MAIN_ROOT)
     (claude_config / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
 
 
@@ -180,21 +203,21 @@ def prepare(
         raise ValueError(f"snapshot tag must start with {TAG_PREFIX!r}: {tag}")
     feature = tag.removeprefix(TAG_PREFIX)
     comparison_id = f"{(today or date.today()).isoformat()}-{feature}"
-    run_dir = config.workspace / comparison_id
+    comparison_run_dir = config.workspace / comparison_id
     comparison_dir = config.comparisons / comparison_id
-    for path in (run_dir, comparison_dir):
+    for path in (comparison_run_dir, comparison_dir):
         if path.exists():
             raise FileExistsError(path)
 
     mapping = dict(zip(ARMS, setups, strict=True))
     user_config = _snapshot_user_config(config)
 
-    run_dir.mkdir(parents=True)
+    comparison_run_dir.mkdir(parents=True)
     for arm, label in mapping.items():
-        _prepare_arm(config, tag, setups[label], user_config, run_dir / arm)
-    (run_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
+        _prepare_arm(config, tag, setups[label], user_config, comparison_run_dir / arm)
+    (comparison_run_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
     # The judge's own config dir, so no user-level guidance or plugin reaches it.
-    judge_config = run_dir / "judge-config"
+    judge_config = comparison_run_dir / "judge-config"
     judge_config.mkdir()
     (judge_config / "settings.json").write_text(json.dumps({"autoMemoryEnabled": False}) + "\n")
 
@@ -206,10 +229,11 @@ def prepare(
         "snapshot_tag": tag,
         "setups": setups,
         "setup_repo": config.setup_repo,
+        "bench_commit": _git("rev-parse", "HEAD", cwd=BENCH_ROOT),
         "user_config_sha256": user_config.sha256,
         "claude_code_version": _claude_code_version(),
         "complexipy_version": version("complexipy"),
-        "workspace": str(run_dir),
+        "workspace": str(comparison_run_dir),
     }
     (comparison_dir / "meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     return comparison_id

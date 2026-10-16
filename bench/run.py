@@ -4,7 +4,7 @@ Before the arms run, the judge model reads the feature description once and name
 a headless arm cannot perform. Both arms get the same prompt, which excludes those tasks.
 Each arm runs `claude -p` in its own clone and config dir, with its own version of the
 setup plugin. The arms run one after the other, in random order. The stream-json
-transcript and stderr go to the arm's workspace dir, outside the bench repo.
+transcript and stderr go to the arm's workspace dir.
 """
 
 import json
@@ -13,9 +13,10 @@ import random
 import re
 import subprocess
 import tempfile
+from pathlib import Path
 
 from bench.config import BENCH_ROOT, Config
-from bench.prepare import ARMS, arm_env, plugin_dir
+from bench.prepare import ARMS, arm_env, plugin_dir, run_dir
 from bench.spec import spec_text
 
 TRIAGE_PROMPT = BENCH_ROOT / "bench" / "instruments" / "task-triage.md"
@@ -49,9 +50,9 @@ def parse_skip(text: str) -> list[str]:
 
 def _triage_tasks(config: Config, comparison_id: str, meta: dict, spec: str) -> list[str]:
     """Runs the task triage on the judge model and writes its reasoning to task-triage.md."""
-    run_dir = config.workspace / comparison_id
-    description = spec_text(run_dir / ARMS[0] / "repo", meta["snapshot_tag"], spec)
-    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(run_dir / "judge-config")}
+    comparison_dir = run_dir(meta)
+    description = spec_text(comparison_dir / ARMS[0] / "repo", meta["snapshot_tag"], spec)
+    env = {**os.environ, "CLAUDE_CONFIG_DIR": str(comparison_dir / "judge-config")}
     command = ["claude", "-p", "--model", config.judge_model, "--output-format", "text"]
     with tempfile.TemporaryDirectory() as empty:
         result = subprocess.run(
@@ -68,8 +69,7 @@ def _triage_tasks(config: Config, comparison_id: str, meta: dict, spec: str) -> 
     return parse_skip(result.stdout)
 
 
-def _run_arm(config: Config, comparison_id: str, arm: str, text: str) -> int:
-    arm_dir = config.workspace / comparison_id / arm
+def _run_arm(config: Config, arm_dir: Path, text: str) -> int:
     transcript = arm_dir / "transcript.jsonl"
     if transcript.exists():
         raise FileExistsError(transcript)
@@ -123,6 +123,6 @@ def run(
     meta.update(spec=spec, skip_tasks=skip_tasks, arm_model=config.arm_model, run_order=order)
     meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     for arm in order:
-        returncode = _run_arm(config, comparison_id, arm, prompt(spec, skip_tasks))
+        returncode = _run_arm(config, run_dir(meta) / arm, prompt(spec, skip_tasks))
         print(f"arm {arm}: claude exited with {returncode}")
     return order

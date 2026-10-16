@@ -3,6 +3,12 @@
 *.log
 transcripts/
 
+# Results of the operator's runs: comparisons and results.csv
+data/
+
+# Workspace: arm clones, Claude config dirs, transcripts and logs
+/runs/
+
 # Python
 __pycache__/
 *.pyc

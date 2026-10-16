@@ -25,10 +25,13 @@ class RunTest(unittest.TestCase):
                 arm_model="arm-model",
                 judge_model="judge-model",
             )
+            # The comparison was prepared in a workspace other than the configured one.
+            recorded = root / "old-runs" / "c1"
             for arm in ("X", "Y"):
-                (config.workspace / "c1" / arm / "repo").mkdir(parents=True)
+                (recorded / arm / "repo").mkdir(parents=True)
             (config.comparisons / "c1").mkdir(parents=True)
-            (config.comparisons / "c1" / "meta.json").write_text('{"snapshot_tag": "bench/feat"}')
+            meta = {"snapshot_tag": "bench/feat", "workspace": str(recorded)}
+            (config.comparisons / "c1" / "meta.json").write_text(json.dumps(meta))
 
             def fake_run(command, **kwargs):
                 result = mock.Mock(returncode=0, stdout="")
@@ -60,13 +63,12 @@ class RunTest(unittest.TestCase):
             for call, arm in zip(claude_calls, order, strict=True):
                 self.assertIn("Implement the feature described in `specs/feat`", call.args[0][2])
                 self.assertIn("except tasks 5.2, 5.3: leave them undone", call.args[0][2])
-                self.assertEqual(call.kwargs["cwd"], config.workspace / "c1" / arm / "repo")
-                plugin = str(config.workspace / "c1" / arm / "plugin")
+                self.assertEqual(call.kwargs["cwd"], recorded / arm / "repo")
+                plugin = str(recorded / arm / "plugin")
                 args = call.args[0]
                 self.assertEqual(args[args.index("--plugin-dir") + 1], plugin)
                 self.assertEqual(
-                    call.kwargs["env"]["CLAUDE_CONFIG_DIR"],
-                    str(config.workspace / "c1" / arm / "claude-config"),
+                    call.kwargs["env"]["CLAUDE_CONFIG_DIR"], str(recorded / arm / "claude-config")
                 )
 
 

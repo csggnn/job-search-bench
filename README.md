@@ -24,21 +24,42 @@ bench/                           # the `bench` command
     task-triage.md               # prompt that finds tasks a headless arm cannot perform
 pyproject.toml, uv.lock          # pinned dependencies: complexipy measures the arms, ruff lints
                                  # this repo
-results.csv                      # one row per arm per comparison
-comparisons/<date>-<feature>/
-  meta.json                      # snapshot tag, SHAs, Claude Code and complexipy versions
-  qa-log.md                      # nudges: questions and answers
-  task-triage.md                 # tasks the arms skip, with reasons
-  summary.md                     # generated draft + notes and decision
-  metrics/                       # per-arm scores and raw tool output
+data/                            # results, gitignored
+  results.csv                    # one row per arm per comparison
+  comparisons/<date>-<feature>/
+    meta.json                    # snapshot tag, SHAs, bench commit, Claude Code and
+                                 # complexipy versions
+    qa-log.md                    # nudges: questions and answers
+    task-triage.md               # tasks the arms skip, with reasons
+    summary.md                   # generated draft + notes and decision
+    metrics/                     # per-arm scores and raw tool output
+runs/                            # workspace, gitignored
+  <date>-<feature>/
+    X/, Y/                       # arm clone, plugin clone, Claude config dir, env.sh,
+                                 # transcript and logs
+    judge-config/                # the judge's Claude config dir
+    mapping.json                 # X/Y to setup label
 ```
 
-The workspace (`~/bench-runs` by default) is outside this repo. It holds, per comparison,
-the arm clones, the per-arm plugin clones and Claude config dirs, and `mapping.json` (X/Y to
-setup label).
+The repository holds no results. `data/` is gitignored. `score` creates `data/results.csv`
+with its header when the file is missing. To keep a history of results, make `data/` a
+separate git repository. `runs/` sits next to `data/`, so that repository holds no clones,
+config dirs or transcripts.
 
-Session transcripts and logs are written to the workspace. `.gitignore` also excludes them
-from this repo.
+`[workspace] root` in `bench.toml` sets the workspace. A relative root resolves against the
+main checkout. `data/` is also at the main checkout root. Every git worktree of this
+repository uses the main checkout's `runs/` and `data/`, so removing a worktree removes no
+comparison. `git clean -x` in the main checkout deletes both folders.
+
+`meta.json` records the comparison's workspace folder. `run` and `score` use that folder,
+also for comparisons prepared in an earlier workspace such as `~/bench-runs`.
+
+Arms do not load the instruction files of this repository. `prepare` lists `CLAUDE.md`,
+`CLAUDE.local.md`, `.claude/CLAUDE.md` and `.claude/rules/**` of every folder from the arm
+folder up to the main checkout root in `claudeMdExcludes` of the arm's settings. Claude Code
+otherwise loads these files from every folder above the arm's clone. Skills and project
+settings of this repository do not reach the arms, because each arm's clone is its own git
+repository.
 
 ## Usage
 
@@ -79,7 +100,7 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
    hook commands, point into the arm's config dir. `meta.json` records the snapshot's
    SHA-256 as `user_config_sha256`.
 
-   It also creates the judge's config dir, and `comparisons/<date>-<feature>/` with
+   It also creates the judge's config dir, and `data/comparisons/<date>-<feature>/` with
    `meta.json` and an empty `qa-log.md`.
 3. Log in once in each arm's config dir and in the judge's, as printed by `prepare`. No
    config dir holds credentials.
@@ -135,7 +156,7 @@ The judge runs `bench/instruments/judge.md` on the judge model with the feature 
 and both diffs, labelled X and Y, in an empty directory with its own config dir.
 
 `score` writes `metrics/<arm>.json`, `metrics/complexipy-<arm>.txt`,
-`metrics/unit-tests-<arm>.txt` and `metrics/judge.md`, appends one `results.csv` row per
+`metrics/unit-tests-<arm>.txt` and `metrics/judge.md`, appends one `data/results.csv` row per
 arm, adds the X/Y mapping to `meta.json` and writes a draft `summary.md`.
 
 ### Isolation rules

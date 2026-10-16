@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from bench.config import Config
-from bench.prepare import parse_setup, prepare
+from bench.prepare import claude_md_excludes, parse_setup, prepare
 
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "test",
@@ -107,6 +107,8 @@ class PrepareTest(unittest.TestCase):
             settings = json.loads((claude_config / "settings.json").read_text())
             self.assertFalse(settings["autoMemoryEnabled"])
             self.assertNotIn("model", settings)
+            # The test workspace is outside the bench repository.
+            self.assertEqual(settings["claudeMdExcludes"], [])
             command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
             self.assertEqual(command, f"bash {claude_config}/hooks/check.sh")
             env_sh = (run_dir / arm / "env.sh").read_text()
@@ -120,6 +122,7 @@ class PrepareTest(unittest.TestCase):
         meta = json.loads((comparison_dir / "meta.json").read_text())
         self.assertEqual(meta["setup_repo"], self.config.setup_repo)
         self.assertEqual(len(meta["user_config_sha256"]), 64)
+        self.assertEqual(len(meta["bench_commit"]), 40)
         self.assertTrue(meta["complexipy_version"])
         self.assertEqual(meta["setups"], self.setups)
 
@@ -151,3 +154,22 @@ class PrepareTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClaudeMdExcludesTest(unittest.TestCase):
+    def test_folders_from_the_arm_up_to_the_main_checkout(self) -> None:
+        main = Path("/home/u/bench")
+        excludes = claude_md_excludes(main / "runs" / "c1" / "X", main)
+
+        self.assertIn("/home/u/bench/CLAUDE.md", excludes)
+        self.assertIn("/home/u/bench/.claude/CLAUDE.md", excludes)
+        self.assertIn("/home/u/bench/runs/c1/X/CLAUDE.local.md", excludes)
+        self.assertIn("/home/u/bench/.claude/rules/**", excludes)
+        self.assertEqual(len(excludes), 4 * 4)
+        self.assertFalse(any(path.startswith("/home/u/bench/runs/c1/X/repo/") for path in excludes))
+        self.assertFalse(any(not path.startswith("/home/u/bench/") for path in excludes))
+
+    def test_arm_outside_the_main_checkout(self) -> None:
+        self.assertEqual(
+            claude_md_excludes(Path("/home/u/bench-runs/c1/X"), Path("/home/u/bench")), []
+        )
