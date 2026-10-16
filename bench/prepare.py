@@ -206,6 +206,7 @@ def prepare(
         "snapshot_tag": tag,
         "setups": setups,
         "setup_repo": config.setup_repo,
+        "bench_commit": _git("rev-parse", "HEAD", cwd=BENCH_ROOT),
         "user_config_sha256": user_config.sha256,
         "claude_code_version": _claude_code_version(),
         "complexipy_version": version("complexipy"),

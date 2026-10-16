@@ -3,6 +3,9 @@
 *.log
 transcripts/
 
+# Results of the operator's runs: comparisons and results.csv
+data/
+
 # Python
 __pycache__/
 *.pyc

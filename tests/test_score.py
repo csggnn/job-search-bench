@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 from bench.score import (
+    RESULTS_COLUMNS,
     ArmMetrics,
+    append_results,
     count_nudges,
     parse_complexipy,
     parse_transcript,
@@ -106,6 +108,19 @@ class OutputTest(unittest.TestCase):
         text = summary_markdown(META, arms, "X")
         self.assertIn("| setup | base | hook |", text)
         self.assertIn("Run order: Y, X.", text)
+
+
+class AppendResultsTest(unittest.TestCase):
+    def test_creates_the_table_and_refuses_a_second_append(self) -> None:
+        rows = results_rows(META, [arm_metrics("X", "base"), arm_metrics("Y", "hook")], "Y")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "data" / "results.csv"
+            append_results(path, rows, META["comparison_id"])
+            lines = path.read_text().splitlines()
+            self.assertEqual(lines[0], ",".join(RESULTS_COLUMNS))
+            self.assertEqual(len(lines), 3)
+            with self.assertRaises(FileExistsError):
+                append_results(path, rows, META["comparison_id"])
 
 
 if __name__ == "__main__":

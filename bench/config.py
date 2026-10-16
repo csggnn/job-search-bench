@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 BENCH_ROOT = Path(__file__).resolve().parent.parent
+# Results of the operator's runs. Gitignored, so the repository holds no results.
+DATA_ROOT = BENCH_ROOT / "data"
 
 
 @dataclass(frozen=True)
@@ -31,7 +33,7 @@ def load_config(path: Path = BENCH_ROOT / "bench.toml") -> Config:
         user_config_paths=tuple(data["user_config"]["paths"]),
         user_config_settings_keys=tuple(data["user_config"]["settings_keys"]),
         workspace=Path(data["workspace"]["root"]).expanduser(),
-        comparisons=BENCH_ROOT / "comparisons",
+        comparisons=DATA_ROOT / "comparisons",
         arm_model=data["models"]["arm"],
         judge_model=data["models"]["judge"],
     )

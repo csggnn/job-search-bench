@@ -120,6 +120,7 @@ class PrepareTest(unittest.TestCase):
         meta = json.loads((comparison_dir / "meta.json").read_text())
         self.assertEqual(meta["setup_repo"], self.config.setup_repo)
         self.assertEqual(len(meta["user_config_sha256"]), 64)
+        self.assertEqual(len(meta["bench_commit"]), 40)
         self.assertTrue(meta["complexipy_version"])
         self.assertEqual(meta["setups"], self.setups)
 
