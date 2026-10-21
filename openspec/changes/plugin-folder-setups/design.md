@@ -2,7 +2,7 @@
 
 ## Context
 
-Each arm loads the root of its setup clone as the plugin. `prepare` writes the arm-to-setup mapping, and only `score` reads it.
+Before this change, each arm loads the root of its setup clone as the plugin. `prepare` writes the arm-to-setup mapping, and only `score` reads it. The flow before this change:
 
 ```
 bench prepare <tag> <sha>:<label> <sha>:<label>
@@ -37,7 +37,7 @@ bench score  reads mapping.json and meta["setups"]
 
 ### Argument parsing in `parse_setup`
 
-`bench/cli.py` takes two `SHA:LABEL` arguments. `parse_setup` in `bench/prepare.py` splits each into `(label, sha)`, and `prepare` refuses equal labels.
+Before this change, `bench/cli.py` takes two `SHA:LABEL` arguments. `parse_setup` in `bench/prepare.py` splits each into `(label, sha)`, and `prepare` refuses equal labels.
 
 `parse_setup` returns a `Setup(path, sha)`. It splits the argument on `@` and requires exactly two non-empty parts. It refuses `:` anywhere in the argument, an absolute path and a `..` component. The path is normalized with `PurePosixPath`, so `plugins/a/` and `plugins/a` are the same setup and `.` stays `.`. Parsing runs in `bench/cli.py` before `prepare`, so a malformed argument creates no folder.
 
@@ -48,7 +48,7 @@ Refusing `:` and a second `@` keeps both characters free for later forms, such a
 
 ### Setup clone at `<arm>/setup`, plugin folder at `<arm>/plugin`
 
-`env.sh` and `bench run` pass `<arm>/plugin` as `--plugin-dir`, and `bench run` reads no mapping (see Context).
+Before this change, `env.sh` and `bench run` pass `<arm>/plugin` as `--plugin-dir`, and `bench run` reads no mapping (see Context).
 
 `_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
 
@@ -78,7 +78,7 @@ After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude
 
 ### Setups resolve before any other arm content
 
-`prepare` creates the arms before the results folder. A failure in an arm leaves `<workspace>/<comparison>/` behind, and a second `prepare` of the same comparison then fails with `FileExistsError`.
+Before this change, `prepare` creates the arms before the results folder. A failure in an arm leaves `<workspace>/<comparison>/` behind, and a second `prepare` of the same comparison then fails with `FileExistsError`.
 
 `prepare` clones and checks the setups of both arms first. If either fails, it removes `<workspace>/<comparison>/` and re-raises with the path and the SHA in the message. The target clones, config dirs and the results folder are created after both setups resolve.
 
@@ -86,13 +86,13 @@ After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude
 
 ### Full SHA from the clone
 
-`_clone_plugin` checks out the given SHA detached and refuses a checkout whose `HEAD` does not start with it. A branch or tag name checks out and then fails this test.
+Before this change, `_clone_plugin` checks out the given SHA detached and refuses a checkout whose `HEAD` does not start with it. A branch or tag name checks out and then fails this test.
 
 After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
 
 ### Recorded setups
 
-Only `score` reads the mapping (see Context), and the `bench/score.py` docstring states it.
+Before this change, only `score` reads the mapping (see Context), and the `bench/score.py` docstring states it.
 
 `mapping.json` maps each arm to `{"path": ..., "sha": ...}` with the full SHA. `meta.json` holds `setups` as a list of the same objects in argument order, with no label. `score` takes `setup` and `setup_sha` of each arm from `mapping.json` and copies the mapping into `meta.json`. `results.csv` keeps its columns.
 
@@ -105,7 +105,7 @@ bench score    <-- mapping.json
                --> results.csv    setup = path, setup_sha = full sha
 ```
 
-`meta.json` keeps the information it holds today: the setups in argument order, and arm X is the first. The mapping stays the only file that pairs arms with setups explicitly, which keeps blind arm assignment (issue #9) a change to `prepare` alone.
+`meta.json` holds the same information as before this change: the setups in argument order, and arm X is the first. The mapping stays the only file that pairs arms with setups explicitly, which keeps blind arm assignment (issue #9) a change to `prepare` alone.
 
 - Rejected: a new `setup_path` column. `setup` is the name of the setup in the results, and the path is that name. A new column would misalign the existing `results.csv`.
 
@@ -116,13 +116,13 @@ bench score    <-- mapping.json
 ## Risks / Trade-offs
 
 - [Claude Code resolves a `--plugin-dir` symlink differently from a folder, e.g. in `${CLAUDE_PLUGIN_ROOT}` or skill discovery.] → The end-to-end probe loads a folder plugin with a skill and a hook through the symlink. If it fails, `_clone_plugin` writes the resolved absolute path into `env.sh` and the arm folder holds it in `plugin-path`, read by `_run_arm`.
-- [The results show a path, e.g. `plugins/sr-cc-review`, where they showed a short label.] → Accepted. A plugin name is a non-goal of this change.
+- [The results show a path, e.g. `plugins/sr-cc-review`. Before this change, they showed a short label.] → Accepted. A plugin name is a non-goal of this change.
 - [A folder rename in the setup repository gives the same plugin two `setup` values across comparisons.] → Accepted. Grouping across renames is an analysis step.
 - [Removing `<workspace>/<comparison>/` on a failed setup deletes a folder `prepare` just created.] → `prepare` already refuses an existing comparison folder before creating it, so the removed folder holds only this run's clones.
 
 ## Migration Plan
 
-`results.csv` holds four rows of two comparisons. Their `meta.json` and `mapping.json` files use labels and abbreviated SHAs (`fcbb2ac`, `49412cc`).
+Before this change, `results.csv` holds four rows of two comparisons. Their `meta.json` and `mapping.json` files use labels and abbreviated SHAs (`fcbb2ac`, `49412cc`).
 
 1. Merge the change.
 2. Rewrite the local records of the two existing comparisons once, with a script kept out of the repository:
