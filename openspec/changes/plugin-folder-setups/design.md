@@ -42,7 +42,7 @@ bench score  reads mapping.json and meta["setups"]
 
 **Before this change:** `bench/cli.py` took two `SHA:LABEL` arguments. `parse_setup` in `bench/prepare.py` split each into `(label, sha)`.
 
-**Decision:** `parse_setup` returns a `Setup(path, sha)`. It splits the argument on `@` and requires exactly two non-empty parts. It refuses `:` anywhere in the argument, an absolute path and a `..` component. The path is normalized with `PurePosixPath`, so `plugins/a/` and `plugins/a` are the same setup and `.` stays `.`. Parsing runs in `bench/cli.py` before `prepare`, so a malformed argument creates no folder.
+**After this change:** `parse_setup` returns a `Setup(path, sha)`. It splits the argument on `@` and requires exactly two non-empty parts. It refuses `:` anywhere in the argument, an absolute path and a `..` component. The path is normalized with `PurePosixPath`, so `plugins/a/` and `plugins/a` are the same setup and `.` stays `.`. Parsing runs in `bench/cli.py` before `prepare`, so a malformed argument creates no folder.
 
 Refusing `:` and a second `@` keeps both characters free for later forms, such as a repository prefix for issue #2.
 
@@ -53,7 +53,7 @@ Refusing `:` and a second `@` keeps both characters free for later forms, such a
 
 **Before this change:** `env.sh` and `bench run` passed `<arm>/plugin` as `--plugin-dir`, and `bench run` read no mapping (see Context).
 
-**Decision:** `_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
+**After this change:** `_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
 
 ```
 runs/<comparison>/
@@ -74,7 +74,7 @@ runs/<comparison>/
 
 ### Warning for a folder without a manifest
 
-**Decision:** After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json`. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
+**After this change:** After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json`. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
 
 - Rejected: refusing a folder without a manifest. Claude Code loads a plugin folder without one.
 - Rejected: requiring a manifest or a component folder such as `skills/` or `hooks/`. The list of component folders is Claude Code's and changes with it.
@@ -85,7 +85,7 @@ runs/<comparison>/
 
 **Before this change:** `prepare` created the arms before the results folder. A failure in an arm left `<workspace>/<comparison>/` behind, and a second `prepare` of the same comparison then failed with `FileExistsError`.
 
-**Decision:** `prepare` clones and checks the setups of both arms first. If either fails, it removes `<workspace>/<comparison>/` and re-raises with the path and the SHA in the message. The target clones, config dirs and the results folder are created after both setups resolve.
+**After this change:** `prepare` clones and checks the setups of both arms first. If either fails, it removes `<workspace>/<comparison>/` and re-raises with the path and the SHA in the message. The target clones, config dirs and the results folder are created after both setups resolve.
 
 - Rejected: checking the folder with `git ls-remote` or the GitHub API before cloning. `ls-remote` lists refs, not trees, and an API ties the bench to one host.
 
@@ -93,13 +93,13 @@ runs/<comparison>/
 
 **Before this change:** `_clone_plugin` checked out the given SHA detached and refused a checkout whose `HEAD` did not start with it. A branch or tag name checked out and then failed this test.
 
-**Decision:** After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
+**After this change:** After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
 
 ### Recorded setups
 
 **Before this change:** only `score` read the mapping (see Context), and the `bench/score.py` docstring stated it.
 
-**Decision:** `mapping.json` maps each arm to `{"path": ..., "sha": ...}` with the full SHA. `meta.json` holds `setups` as a list of the same objects in argument order, with no label. `score` takes `setup` and `setup_sha` of each arm from `mapping.json` and copies the mapping into `meta.json`. `results.csv` keeps its columns.
+**After this change:** `mapping.json` maps each arm to `{"path": ..., "sha": ...}` with the full SHA. `meta.json` holds `setups` as a list of the same objects in argument order, with no label. `score` takes `setup` and `setup_sha` of each arm from `mapping.json` and copies the mapping into `meta.json`. `results.csv` keeps its columns.
 
 ```
 bench prepare  --> mapping.json   X: {path, sha}, Y: {path, sha}
@@ -116,7 +116,7 @@ bench score    <-- mapping.json
 
 ### `cli.py` output
 
-**Decision:** `bench score` prints `arm X: <path>@<sha>` per arm. `bench prepare` prints each arm's path and full SHA next to its `env.sh` line.
+**After this change:** `bench score` prints `arm X: <path>@<sha>` per arm. `bench prepare` prints each arm's path and full SHA next to its `env.sh` line.
 
 ## Risks / Trade-offs
 
