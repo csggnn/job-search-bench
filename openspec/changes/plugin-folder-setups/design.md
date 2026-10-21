@@ -7,12 +7,15 @@ Before this change, the root folder of the setup repository is assumed to be a C
 ```
 bench prepare <tag> <sha>:<label> <sha>:<label>
   |
-  +--> runs/<comparison>/<arm>/plugin/          clone of [setup] repo at <sha>
-  +--> runs/<comparison>/<arm>/env.sh           claude --plugin-dir <arm>/plugin
-  +--> runs/<comparison>/mapping.json           arm -> label
+  +--> runs/<comparison>/X/plugin/              clone of [setup] repo at the first <sha>
+  +--> runs/<comparison>/X/env.sh               claude --plugin-dir X/plugin
+  +--> runs/<comparison>/Y/plugin/              clone of [setup] repo at the second <sha>
+  +--> runs/<comparison>/Y/env.sh               claude --plugin-dir Y/plugin
+  +--> runs/<comparison>/mapping.json           X -> label, Y -> label
   +--> data/comparisons/<comparison>/meta.json  setups: label -> <sha> as typed
 
-bench run    claude --plugin-dir <arm>/plugin   (plugin_dir(arm), no mapping read)
+bench run    claude --plugin-dir X/plugin       (plugin_dir(arm), no mapping read)
+             claude --plugin-dir Y/plugin
 
 bench score  reads mapping.json and meta["setups"]
   +--> meta.json                                mapping copied in
@@ -53,14 +56,16 @@ Before this change, `env.sh` and `bench run` pass `<arm>/plugin` as `--plugin-di
 `_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
 
 ```
-runs/<comparison>/<arm>/
-  setup/                  clone of [setup] repo at <sha>
-    plugins/sr-v0/
-    plugins/sr-cc-review/
-  plugin -> setup/<path>  symlink, passed as --plugin-dir
-  repo/
-  claude-config/
-  env.sh
+runs/<comparison>/
+  X/
+    setup/                  clone of [setup] repo at the first <sha>
+      plugins/sr-v0/
+      plugins/sr-cc-review/
+    plugin -> setup/<path>  symlink, passed as --plugin-dir
+    repo/
+    claude-config/
+    env.sh
+  Y/                        same layout, second <path>@<sha>
 ```
 
 - Rejected: `_run_arm` reading the path from `mapping.json`. `bench run` would read the mapping before scoring.
