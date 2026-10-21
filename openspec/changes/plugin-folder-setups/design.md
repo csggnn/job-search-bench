@@ -2,7 +2,7 @@
 
 ## Context
 
-Before this change, each arm loads the root of its setup clone as the plugin. `prepare` writes the arm-to-setup mapping, and only `score` reads it. The flow before this change:
+Before this change, the root folder of the setup repository is assumed to be a Claude Code plugin. A version of this plugin, at the arm's commit, is loaded in each arm. `prepare` writes the arm-to-setup mapping, and only `score` reads it. The flow before this change:
 
 ```
 bench prepare <tag> <sha>:<label> <sha>:<label>

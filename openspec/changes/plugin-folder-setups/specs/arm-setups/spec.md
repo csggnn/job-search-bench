@@ -94,7 +94,7 @@ Each setup SHALL name a commit reachable in the `[setup] repo` and a folder that
 - **WHEN** `bench prepare bench/feat plugins/a@7280529 plugins/a@7280529` runs
 - **THEN** both arms are created and each loads `plugins/a` at commit `7280529`
 
-### Requirement: Arm loads its setup folder
+### Requirement: Setup folder loaded in each arm
 
 An arm session SHALL load its setup folder as its only `--plugin-dir` plugin, in a `bench run` session and in an interactive session started with the arm's `env.sh`.
 
