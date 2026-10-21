@@ -74,7 +74,7 @@ runs/<comparison>/
 
 ### Warning for a folder without a manifest
 
-**After this change:** After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json`. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
+**After this change:** `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json` after the directory check. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
 
 - Rejected: refusing a folder without a manifest. Claude Code loads a plugin folder without one.
 - Rejected: requiring a manifest or a component folder such as `skills/` or `hooks/`. The list of component folders is Claude Code's and changes with it.
@@ -93,7 +93,7 @@ runs/<comparison>/
 
 **Before this change:** `_clone_plugin` checked out the given SHA detached and refused a checkout whose `HEAD` did not start with it. A branch or tag name checked out and then failed this test.
 
-**After this change:** After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
+**After this change:** `git rev-parse HEAD` in `<arm>/setup` gives the full SHA after the checkout. `prepare` records it. The prefix check stays.
 
 ### Recorded setups
 
