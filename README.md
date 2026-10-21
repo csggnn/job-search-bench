@@ -10,6 +10,8 @@ Specification: [csggnn/job-search-agent#84](https://github.com/csggnn/job-search
 
 ## How a comparison works
 
+[GLOSSARY.md](GLOSSARY.md) defines the terms this README uses.
+
 1. `prepare` creates two arms, X and Y. Each arm has a clone of job-search-agent at the
    snapshot tag, a clone of simplicity-rules at one setup's commit, and its own Claude
    config dir. Both arms get the same settings and the same snapshot of the user's Claude
