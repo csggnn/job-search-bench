@@ -2,7 +2,7 @@
 
 ## Context
 
-Before this change, the root folder of the setup repository is assumed to be a Claude Code plugin. A version of this plugin, at the arm's commit, is loaded in each arm. `prepare` writes the arm-to-setup mapping, and only `score` reads it. The flow before this change:
+Before this change, the root folder of the setup repository was assumed to be a Claude Code plugin. A version of this plugin, at the arm's commit, was loaded in each arm. `prepare` wrote the arm-to-setup mapping, and only `score` read it. The flow before this change:
 
 ```
 bench prepare <tag> <sha>:<label> <sha>:<label>
@@ -40,20 +40,20 @@ bench score  reads mapping.json and meta["setups"]
 
 ### Argument parsing in `parse_setup`
 
-Before this change, `bench/cli.py` takes two `SHA:LABEL` arguments. `parse_setup` in `bench/prepare.py` splits each into `(label, sha)`, and `prepare` refuses equal labels.
+**Before this change:** `bench/cli.py` took two `SHA:LABEL` arguments. `parse_setup` in `bench/prepare.py` split each into `(label, sha)`.
 
-`parse_setup` returns a `Setup(path, sha)`. It splits the argument on `@` and requires exactly two non-empty parts. It refuses `:` anywhere in the argument, an absolute path and a `..` component. The path is normalized with `PurePosixPath`, so `plugins/a/` and `plugins/a` are the same setup and `.` stays `.`. Parsing runs in `bench/cli.py` before `prepare`, so a malformed argument creates no folder.
+**Decision:** `parse_setup` returns a `Setup(path, sha)`. It splits the argument on `@` and requires exactly two non-empty parts. It refuses `:` anywhere in the argument, an absolute path and a `..` component. The path is normalized with `PurePosixPath`, so `plugins/a/` and `plugins/a` are the same setup and `.` stays `.`. Parsing runs in `bench/cli.py` before `prepare`, so a malformed argument creates no folder.
 
 Refusing `:` and a second `@` keeps both characters free for later forms, such as a repository prefix for issue #2.
 
-- Rejected: `<sha>:<label>:<path>`. The current form `<sha>:<label>` would keep parsing, but with a new meaning once the label is gone.
+- Rejected: `<sha>:<label>:<path>`. The form `<sha>:<label>` used before this change would keep parsing, but with a new meaning once the label is gone.
 - Rejected: a default path of `.` when `@` is missing. Two spellings of the root setup, and the missing-commit form would then be taken.
 
 ### Setup clone at `<arm>/setup`, plugin folder at `<arm>/plugin`
 
-Before this change, `env.sh` and `bench run` pass `<arm>/plugin` as `--plugin-dir`, and `bench run` reads no mapping (see Context).
+**Before this change:** `env.sh` and `bench run` passed `<arm>/plugin` as `--plugin-dir`, and `bench run` read no mapping (see Context).
 
-`_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
+**Decision:** `_clone_plugin` clones `[setup] repo` into `<arm>/setup` and checks out the SHA. It then checks that `<arm>/setup/<path>` is a directory and creates `<arm>/plugin` as a relative symlink to it. For `.` the symlink points at the clone. `plugin_dir` keeps returning `<arm>/plugin`, so `env.sh` and `_run_arm` keep their command lines.
 
 ```
 runs/<comparison>/
@@ -74,7 +74,7 @@ runs/<comparison>/
 
 ### Warning for a folder without a manifest
 
-After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json`. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
+**Decision:** After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude-plugin/plugin.json`. When it is missing, `prepare` prints a warning to stderr with the path and the full SHA, and continues. The warning is not recorded in `meta.json`. `skills_used` in `results.csv` shows after a run whether the plugin acted.
 
 - Rejected: refusing a folder without a manifest. Claude Code loads a plugin folder without one.
 - Rejected: requiring a manifest or a component folder such as `skills/` or `hooks/`. The list of component folders is Claude Code's and changes with it.
@@ -83,23 +83,23 @@ After the directory check, `_clone_plugin` tests for `<arm>/setup/<path>/.claude
 
 ### Setups resolve before any other arm content
 
-Before this change, `prepare` creates the arms before the results folder. A failure in an arm leaves `<workspace>/<comparison>/` behind, and a second `prepare` of the same comparison then fails with `FileExistsError`.
+**Before this change:** `prepare` created the arms before the results folder. A failure in an arm left `<workspace>/<comparison>/` behind, and a second `prepare` of the same comparison then failed with `FileExistsError`.
 
-`prepare` clones and checks the setups of both arms first. If either fails, it removes `<workspace>/<comparison>/` and re-raises with the path and the SHA in the message. The target clones, config dirs and the results folder are created after both setups resolve.
+**Decision:** `prepare` clones and checks the setups of both arms first. If either fails, it removes `<workspace>/<comparison>/` and re-raises with the path and the SHA in the message. The target clones, config dirs and the results folder are created after both setups resolve.
 
 - Rejected: checking the folder with `git ls-remote` or the GitHub API before cloning. `ls-remote` lists refs, not trees, and an API ties the bench to one host.
 
 ### Full SHA from the clone
 
-Before this change, `_clone_plugin` checks out the given SHA detached and refuses a checkout whose `HEAD` does not start with it. A branch or tag name checks out and then fails this test.
+**Before this change:** `_clone_plugin` checked out the given SHA detached and refused a checkout whose `HEAD` did not start with it. A branch or tag name checked out and then failed this test.
 
-After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
+**Decision:** After the checkout, `git rev-parse HEAD` in `<arm>/setup` gives the full SHA. `prepare` records it. The prefix check stays.
 
 ### Recorded setups
 
-Before this change, only `score` reads the mapping (see Context), and the `bench/score.py` docstring states it.
+**Before this change:** only `score` read the mapping (see Context), and the `bench/score.py` docstring stated it.
 
-`mapping.json` maps each arm to `{"path": ..., "sha": ...}` with the full SHA. `meta.json` holds `setups` as a list of the same objects in argument order, with no label. `score` takes `setup` and `setup_sha` of each arm from `mapping.json` and copies the mapping into `meta.json`. `results.csv` keeps its columns.
+**Decision:** `mapping.json` maps each arm to `{"path": ..., "sha": ...}` with the full SHA. `meta.json` holds `setups` as a list of the same objects in argument order, with no label. `score` takes `setup` and `setup_sha` of each arm from `mapping.json` and copies the mapping into `meta.json`. `results.csv` keeps its columns.
 
 ```
 bench prepare  --> mapping.json   X: {path, sha}, Y: {path, sha}
@@ -116,7 +116,7 @@ bench score    <-- mapping.json
 
 ### `cli.py` output
 
-`bench score` prints `arm X: <path>@<sha>` per arm. `bench prepare` prints each arm's path and full SHA next to its `env.sh` line.
+**Decision:** `bench score` prints `arm X: <path>@<sha>` per arm. `bench prepare` prints each arm's path and full SHA next to its `env.sh` line.
 
 ## Risks / Trade-offs
 
@@ -127,7 +127,7 @@ bench score    <-- mapping.json
 
 ## Migration Plan
 
-Before this change, `results.csv` holds four rows of two comparisons. Their `meta.json` and `mapping.json` files use labels and abbreviated SHAs (`fcbb2ac`, `49412cc`).
+Before this change, `results.csv` held four rows of two comparisons. Their `meta.json` and `mapping.json` files used labels and abbreviated SHAs (`fcbb2ac`, `49412cc`).
 
 1. Merge the change.
 2. Rewrite the local records of the two existing comparisons once, with a script kept out of the repository:
