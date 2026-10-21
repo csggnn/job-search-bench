@@ -24,6 +24,7 @@
 
 - [ ] 5.1 Run `uv run python -m unittest discover -s tests -t .` and `uv run ruff check . && uv run ruff format --check .`. Verify both pass.
 - [ ] 5.2 End-to-end probe. Prepare a throwaway comparison with `plugins/sr-cc-review@<origin/main sha>` and `plugins/sr-v0@<origin/main sha>`. In arm X, source `env.sh` and run `claude -p` asking for the list of available skills, with `--output-format stream-json --verbose`. Verify the `init` message lists `sr-cc-review:design-review` and `sr-cc-review:cognitive-complexity`, and that the `PreToolUse` hook of `sr-cc-review` runs on a `git commit` in the clone. Verify `prepare` printed no manifest warning. If either fails through the symlink, apply the fallback in design.md, Risks, and repeat. Delete the throwaway comparison.
+- [ ] 5.3 Full run. In job-search-agent, tag the commit of `bench/csg-57-commute-city-level-fallback-r3` as `bench/csg-57-commute-city-level-fallback-r4` and push the tag. Run `bench prepare bench/csg-57-commute-city-level-fallback-r4 plugins/sr-v0@<origin/main sha> plugins/sr-cc-review@<origin/main sha>`, log in to both arms and the judge as printed, then run `bench run <comparison> --spec openspec/changes/csg-57-commute-city-level-fallback` and `bench score <comparison>`. Verify both arms exit with 0, `skills_used` of the `plugins/sr-cc-review` row lists at least one `sr-cc-review:` skill, and the two new `results.csv` rows hold `plugins/sr-v0` and `plugins/sr-cc-review` in `setup` with 40-character SHAs in `setup_sha`. Keep the comparison as a result.
 
 ## 6. Existing records
 
