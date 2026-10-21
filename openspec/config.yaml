@@ -31,7 +31,7 @@ rules:
     - Rejected alternatives belong under the Decision they relate to.
     - Context describes the flow the change touches, as it was before the change. A fact belongs in Context when more than one Decision, Risk or Migration Plan step cites it. A fact cited by none is removed.
     - A sentence or diagram in any section that describes behavior before the change says so and uses the past tense, e.g. "Before this change, `bench/cli.py` took two `SHA:LABEL` arguments." A block of such sentences can share one lead-in, e.g. "Before this change:" above a diagram. A sentence in the present tense describes behavior after the change.
-    - A Decision opens with a paragraph labelled **Before this change:** that holds the facts it depends on that Context does not hold, when it has any. The choice follows in a paragraph labelled **Decision:**.
+    - A Decision opens with a paragraph labelled **Before this change:** that holds the facts it depends on that Context does not hold, when it has any. The choice follows in a paragraph labelled **After this change:**. A Decision with no such facts opens with the **After this change:** paragraph.
     - A flow or a folder layout the reader needs to follow the design is drawn as a plain-text diagram or a file tree in a code block. The drawing replaces the prose it shows. Diagrams use ASCII characters only.
 
 # Per-operation guidance (optional)
