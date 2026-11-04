@@ -14,8 +14,9 @@ Specification: [csggnn/job-search-agent#84](https://github.com/csggnn/job-search
 
 1. `prepare` creates two arms, X and Y. Each arm has a clone of job-search-agent at the
    snapshot tag, a clone of simplicity-rules at one setup's commit, and its own Claude
-   config dir. Both arms get the same settings and the same snapshot of the user's Claude
-   config. Which setup is X and which is Y stays hidden until scoring.
+   config dir. The arm loads the setup's folder of that clone as its plugin. Both arms
+   get the same settings and the same snapshot of the user's Claude config. Which setup
+   is X and which is Y stays hidden until scoring.
 2. `run` has each arm implement the feature headless, in random order. The judge model
    first lists the tasks a headless arm cannot perform, and both arms skip them. An arm
    may change the feature description where that simplifies the code and keeps the
@@ -39,6 +40,12 @@ data/                            # results, gitignored
                                  # verdict, summary
 runs/                            # workspace, gitignored
   <comparison>/                  # arms X and Y, judge config dir, X/Y mapping
+    <arm>/
+      repo/                      # clone of job-search-agent at the snapshot tag
+      setup/                     # clone of simplicity-rules at the setup's commit
+      plugin -> setup/<path>     # the setup's folder, loaded with --plugin-dir
+      claude-config/             # the arm's Claude Code config dir
+      env.sh                     # shell setup for an interactive session
 ```
 
 `data/` and `runs/` are at the main checkout root. Every git worktree of this repository
@@ -63,18 +70,24 @@ Run commands as `uv run bench <command>`, or activate `.venv` first.
    OpenSpec change under `openspec/changes/`.
 2. Run:
    ```
-   bench prepare bench/<feature> <sha>:<label> <sha>:<label>
+   bench prepare bench/<feature> <path>@<sha> <path>@<sha>
    ```
-   `<sha>` is a pushed commit of the `[setup] repo` in `bench.toml`. A short SHA works. A
-   branch name or a local-only commit fails. `<label>` names the setup, e.g. the branch
-   the commit is on. The two labels differ. The `setup` column of `results.csv` holds the
-   label, so the same setup keeps the same label across comparisons. Arm X gets the first
-   setup and arm Y the second. Example:
+   Each argument is a setup: the folder `<path>` of the `[setup] repo` in `bench.toml` at
+   the commit `<sha>`. `<path>` is relative to the repository root, and `.` is the root.
+   `<sha>` is a pushed commit. A short SHA works. A branch name, a tag name or a
+   local-only commit fails. A path with `@` or `:`, an absolute path and a path with a
+   `..` component fail. Both arguments may name the same setup. Arm X gets the first
+   setup and arm Y the second.
+
+   `prepare` fails and leaves no comparison folder when a setup's folder does not exist
+   at its commit. It prints a warning and continues when the folder holds no
+   `.claude-plugin/plugin.json`. Example:
    ```
-   sr=~/Projects/simplicity-rules
-   bench prepare bench/<feature> $(git -C $sr rev-parse --short origin/main):main \
-     $(git -C $sr rev-parse --short origin/cc-hook):cc-hook
+   sha=$(git -C ~/Projects/simplicity-rules rev-parse --short origin/main)
+   bench prepare bench/<feature> plugins/sr-v0@$sha plugins/sr-cc-review@$sha
    ```
+   `meta.json` records each setup's path and full SHA. In `results.csv`, `setup` holds the
+   path and `setup_sha` the full SHA.
 3. Log in once in each arm's config dir and in the judge's, as printed by `prepare`.
 
 ### Run the arms
@@ -114,8 +127,8 @@ Per arm, measured on the arm's diff against the snapshot tag:
   answer is "not specified, use your judgment". Log every question and answer in
   `qa-log.md` and reuse answers word for word across arms.
 - Run both arms before reading either output.
-- The two setups differ only in the plugin commit. A needed project change lands on
-  the job-search-agent default branch before the snapshot tag.
+- The two setups differ only in the plugin folder and commit. A needed project change
+  lands on the job-search-agent default branch before the snapshot tag.
 - Comparisons are comparable only at the same `user_config_sha256` in `meta.json`.
 
 
