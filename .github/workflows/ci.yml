@@ -34,3 +34,17 @@ jobs:
       - name: Run unit tests
         if: ${{ !cancelled() }}
         run: uv run python -m unittest discover -s tests -t .
+
+      - name: Install OpenSpec
+        if: ${{ !cancelled() }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Validate OpenSpec changes and specs
+        if: ${{ !cancelled() }}
+        run: npx openspec validate --all --no-interactive
+
+      - name: Check generated OpenSpec files match the pinned version
+        if: ${{ !cancelled() }}
+        run: |
+          npx openspec update --force > /dev/null
+          git diff --exit-code -- .claude
