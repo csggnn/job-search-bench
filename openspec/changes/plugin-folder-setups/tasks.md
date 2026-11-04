@@ -14,7 +14,7 @@
 
 ## 3. Scoring
 
-- [ ] 3.1 In `bench/score.py`, take `setup` and `setup_sha` of each arm from its `mapping.json` object in `_score_arm`, and print `arm X: <path>@<sha>` in `bench/cli.py`. Update `tests/test_score.py` fixtures and the `| setup |` summary assertion to paths. Verify `uv run python -m unittest tests.test_score tests.test_run` passes and `RESULTS_COLUMNS` is unchanged.
+- [x] 3.1 In `bench/score.py`, take `setup` and `setup_sha` of each arm from its `mapping.json` object in `_score_arm`, and print `arm X: <path>@<sha>` in `bench/cli.py`. Update `tests/test_score.py` fixtures and the `| setup |` summary assertion to paths. Verify `uv run python -m unittest tests.test_score tests.test_run` passes and `RESULTS_COLUMNS` is unchanged.
 
 ## 4. Documentation
 

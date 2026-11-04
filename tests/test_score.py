@@ -25,11 +25,14 @@ META = {
 }
 
 
+SETUP_SHA = "7280529" + "0" * 33
+
+
 def arm_metrics(arm: str, setup: str) -> ArmMetrics:
     return ArmMetrics(
         arm=arm,
         setup=setup,
-        setup_sha="abc",
+        setup_sha=SETUP_SHA,
         final_commit="def",
         uncommitted_changes=False,
         lines_changed=120,
@@ -92,27 +95,31 @@ class ParseTest(unittest.TestCase):
 
 class OutputTest(unittest.TestCase):
     def test_results_rows_mark_the_preferred_arm(self) -> None:
-        arms = [arm_metrics("X", "base"), arm_metrics("Y", "hook")]
+        arms = [arm_metrics("X", "plugins/sr-v0"), arm_metrics("Y", "plugins/sr-cc-review")]
         rows = results_rows(META, arms, "Y")
         self.assertEqual([row["judge_preferred"] for row in rows], ["no", "yes"])
+        self.assertEqual([row["setup"] for row in rows], ["plugins/sr-v0", "plugins/sr-cc-review"])
+        self.assertEqual([row["setup_sha"] for row in rows], [SETUP_SHA, SETUP_SHA])
         self.assertEqual(rows[0]["cost_usd"], 3.46)
         self.assertEqual(rows[1]["date"], "2026-10-15")
 
     def test_tie_and_missing_verdict(self) -> None:
-        arms = [arm_metrics("X", "base")]
+        arms = [arm_metrics("X", "plugins/sr-v0")]
         self.assertEqual(results_rows(META, arms, "TIE")[0]["judge_preferred"], "tie")
         self.assertEqual(results_rows(META, arms, None)[0]["judge_preferred"], "")
 
     def test_summary_lists_each_arm(self) -> None:
-        arms = [arm_metrics("X", "base"), arm_metrics("Y", "hook")]
+        arms = [arm_metrics("X", "plugins/sr-v0"), arm_metrics("Y", "plugins/sr-cc-review")]
         text = summary_markdown(META, arms, "X")
-        self.assertIn("| setup | base | hook |", text)
+        self.assertIn("| setup | plugins/sr-v0 | plugins/sr-cc-review |", text)
         self.assertIn("Run order: Y, X.", text)
 
 
 class AppendResultsTest(unittest.TestCase):
     def test_creates_the_table_and_refuses_a_second_append(self) -> None:
-        rows = results_rows(META, [arm_metrics("X", "base"), arm_metrics("Y", "hook")], "Y")
+        rows = results_rows(
+            META, [arm_metrics("X", "plugins/sr-v0"), arm_metrics("Y", "plugins/sr-cc-review")], "Y"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "data" / "results.csv"
             append_results(path, rows, META["comparison_id"])

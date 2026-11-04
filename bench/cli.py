@@ -55,7 +55,7 @@ def main() -> None:
         run(config, args.comparison, args.spec)
     else:
         for metrics in score(config, args.comparison):
-            print(f"arm {metrics.arm}: {metrics.setup}")
+            print(f"arm {metrics.arm}: {metrics.setup}@{metrics.setup_sha}")
 
 
 if __name__ == "__main__":
