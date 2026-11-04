@@ -34,7 +34,7 @@ Defines how `bench prepare` selects the plugin each arm loads from the setup rep
 
 ### Requirement: Reserved characters and path bounds
 
-`bench prepare` SHALL refuse a setup argument whose path contains `@` or `:`, is absolute, or has a `..` component. The refusal SHALL happen before any folder is created.
+`bench prepare` SHALL refuse a setup argument that contains `:` or more than one `@`, or whose path is absolute or has a `..` component. The refusal SHALL happen before any folder is created.
 
 #### Scenario: Path with a reserved character
 
