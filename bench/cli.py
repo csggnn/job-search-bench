@@ -1,6 +1,7 @@
 """Command-line entry point: `bench <command>`."""
 
 import argparse
+import json
 
 from bench.config import load_config
 from bench.prepare import ARMS, parse_setup, prepare
@@ -19,8 +20,9 @@ def main() -> None:
     prepare_parser.add_argument(
         "setups",
         nargs=2,
-        metavar="SHA:LABEL",
-        help="setup commit and a label naming it, e.g. 715c15d:cc-hook",
+        metavar="PATH@SHA",
+        help="folder of the setup repository at a commit, e.g. plugins/sr-v0@7280529; "
+        ". is the repository root",
     )
 
     run_parser = commands.add_parser("run", help="run code generation headless in both arms")
@@ -33,16 +35,21 @@ def main() -> None:
     score_parser.add_argument("comparison", help="comparison id")
 
     args = parser.parse_args()
+    if args.command == "prepare":
+        try:
+            setups = [parse_setup(text) for text in args.setups]
+        except ValueError as error:
+            prepare_parser.error(str(error))
     config = load_config()
     if args.command == "prepare":
-        setups = dict(parse_setup(text) for text in args.setups)
-        if len(setups) != len(args.setups):
-            parser.error("setup labels must differ")
         comparison_id = prepare(config, args.tag, setups)
         run_dir = config.workspace / comparison_id
+        mapping = json.loads((run_dir / "mapping.json").read_text())
         print(f"comparison: {comparison_id}")
         for arm in ARMS:
-            print(f"arm {arm}: source {run_dir / arm / 'env.sh'} && claude")
+            setup = mapping[arm]
+            print(f"arm {arm}: {setup['path']}@{setup['sha']}")
+            print(f"  source {run_dir / arm / 'env.sh'} && claude")
         print(f"judge: CLAUDE_CONFIG_DIR={run_dir / 'judge-config'} claude")
     elif args.command == "run":
         run(config, args.comparison, args.spec)
