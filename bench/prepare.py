@@ -1,11 +1,16 @@
 """Creates two isolated arms for one comparison from a frozen snapshot tag.
 
 Each arm gets a fresh clone of the snapshot with no remote, the default branch at the
-snapshot and a work branch checked out, a clone of the setup plugin at the arm's SHA, and a
-Claude Code config dir. The config dir holds the pinned arm settings and a snapshot of the
-user-level files listed in bench.toml, identical for both arms.
-Arm X gets the first setup and arm Y the second. The mapping from arm to setup label is
-written to the workspace.
+snapshot and a work branch checked out, and a Claude Code config dir. The config dir holds
+the pinned arm settings and a snapshot of the user-level files listed in bench.toml,
+identical for both arms.
+
+A setup is a folder of the setup repository at a commit, `<path>@<sha>`. Each arm holds a
+clone of the setup repository at the setup's commit in `setup/`, and `plugin`, a relative
+symlink to the setup's folder in that clone. `plugin` is the arm's --plugin-dir.
+
+Arm X gets the first setup and arm Y the second. The mapping from arm to setup path and
+full SHA is written to the workspace.
 """
 
 import hashlib
@@ -13,10 +18,11 @@ import json
 import shutil
 import stat
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import date
 from importlib.metadata import version
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from bench.config import BENCH_ROOT, MAIN_ROOT, Config
 
@@ -34,6 +40,14 @@ class UserConfig:
     files: dict[str, tuple[bytes, int]]  # path relative to the source -> (content, mode)
     settings: dict
     sha256: str
+
+
+@dataclass(frozen=True)
+class Setup:
+    """A folder of the setup repository at a commit. `.` is the repository root."""
+
+    path: str
+    sha: str
 
 
 QA_LOG_TEMPLATE = """# Q&A log: {comparison_id}
@@ -148,25 +162,44 @@ def _write_claude_config(config: Config, user_config: UserConfig, arm_dir: Path)
     (claude_config / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
 
 
-def _clone_plugin(config: Config, setup_sha: str, arm_dir: Path) -> None:
-    plugin = plugin_dir(arm_dir)
-    _git("clone", "--no-local", config.setup_repo, str(plugin))
-    _git("checkout", "--detach", setup_sha, cwd=plugin)
-    actual = _git("rev-parse", "HEAD", cwd=plugin)
-    if not actual.startswith(setup_sha) and not setup_sha.startswith(actual):
-        raise RuntimeError(f"{plugin} is at {actual}, expected {setup_sha}")
+def _clone_plugin(config: Config, setup: Setup, arm_dir: Path) -> str:
+    """Clones the setup repository at the setup's commit and links the arm's plugin folder.
+
+    Returns the full SHA of the checked-out commit.
+    """
+    clone = arm_dir / "setup"
+    _git("clone", "--no-local", config.setup_repo, str(clone))
+    try:
+        _git("checkout", "--detach", setup.sha, cwd=clone)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            f"setup {setup.path}@{setup.sha}: commit {setup.sha} not found in the setup repository"
+        ) from error
+    actual = _git("rev-parse", "HEAD", cwd=clone)
+    if not actual.startswith(setup.sha):
+        raise RuntimeError(
+            f"setup {setup.path}@{setup.sha}: {setup.sha} is not a commit SHA, it resolves to"
+            f" {actual}"
+        )
+    folder = clone / setup.path
+    if not folder.is_dir():
+        raise RuntimeError(f"setup {setup.path}@{setup.sha}: no folder {setup.path} at {actual}")
+    plugin_dir(arm_dir).symlink_to(Path(clone.name) / setup.path)
+    if not (folder / ".claude-plugin" / "plugin.json").is_file():
+        print(
+            f"warning: setup {setup.path}@{actual} holds no .claude-plugin/plugin.json",
+            file=sys.stderr,
+        )
+    return actual
 
 
-def _prepare_arm(
-    config: Config, tag: str, setup_sha: str, user_config: UserConfig, arm_dir: Path
-) -> None:
+def _prepare_arm(config: Config, tag: str, user_config: UserConfig, arm_dir: Path) -> None:
     repo = arm_dir / "repo"
     _git("clone", "--no-local", "--branch", tag, config.target_repo, str(repo))
     _git("remote", "remove", "origin", cwd=repo)
     _git("branch", config.default_branch, "HEAD", cwd=repo)
     _git("switch", "-c", WORK_BRANCH_PREFIX + tag.removeprefix(TAG_PREFIX), cwd=repo)
 
-    _clone_plugin(config, setup_sha, arm_dir)
     _write_claude_config(config, user_config, arm_dir)
     exports = "".join(f"export {name}={value}\n" for name, value in arm_env(arm_dir).items())
     # bash expands aliases when it reads a line. A function applies to the `claude` in
@@ -179,26 +212,35 @@ def _prepare_arm(
     (arm_dir / "env.sh").write_text(f"{exports}{wrapper}cd {repo}\n")
 
 
-def parse_setup(text: str) -> tuple[str, str]:
-    """Splits `<sha>:<label>` into (label, sha)."""
-    sha, _, label = text.partition(":")
-    if not sha or not label:
-        raise ValueError(f"setup must be <sha>:<label>: {text}")
-    return label, sha
+def parse_setup(text: str) -> Setup:
+    """Parses `<path>@<sha>`.
+
+    The argument holds exactly one `@` and no `:`. The path is relative and has no `..`
+    component. `plugins/a/` and `plugins/a` parse to the same path.
+    """
+    parts = text.split("@")
+    if ":" in text or len(parts) != 2 or not all(parts):
+        raise ValueError(f"setup must be <path>@<sha>: {text}")
+    path = PurePosixPath(parts[0])
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"setup path must be inside the setup repository, <path>@<sha>: {text}")
+    return Setup(path=str(path), sha=parts[1])
 
 
 def prepare(
     config: Config,
     tag: str,
-    setups: dict[str, str],
+    setups: list[Setup],
     today: date | None = None,
 ) -> str:
     """Creates both arms and the comparison folder. Returns the comparison id.
 
-    setups maps a label to a setup commit, one entry per arm, in arm order.
+    setups holds one setup per arm, in arm order. The setups of both arms resolve before any
+    other arm content is created. When one does not resolve, the comparison's workspace
+    folder is removed and the error is re-raised.
     """
     if len(setups) != len(ARMS):
-        raise ValueError(f"expected {len(ARMS)} setups with distinct labels: {setups}")
+        raise ValueError(f"expected {len(ARMS)} setups: {setups}")
     if not tag.startswith(TAG_PREFIX):
         raise ValueError(f"snapshot tag must start with {TAG_PREFIX!r}: {tag}")
     feature = tag.removeprefix(TAG_PREFIX)
@@ -209,12 +251,22 @@ def prepare(
         if path.exists():
             raise FileExistsError(path)
 
-    mapping = dict(zip(ARMS, setups, strict=True))
     user_config = _snapshot_user_config(config)
 
     comparison_run_dir.mkdir(parents=True)
-    for arm, label in mapping.items():
-        _prepare_arm(config, tag, setups[label], user_config, comparison_run_dir / arm)
+    resolved = []
+    try:
+        for arm, setup in zip(ARMS, setups, strict=True):
+            (comparison_run_dir / arm).mkdir()
+            sha = _clone_plugin(config, setup, comparison_run_dir / arm)
+            resolved.append({"path": setup.path, "sha": sha})
+    except Exception:
+        shutil.rmtree(comparison_run_dir)
+        raise
+    mapping = dict(zip(ARMS, resolved, strict=True))
+
+    for arm in ARMS:
+        _prepare_arm(config, tag, user_config, comparison_run_dir / arm)
     (comparison_run_dir / "mapping.json").write_text(json.dumps(mapping, indent=2) + "\n")
     # The judge's own config dir, so no user-level guidance or plugin reaches it.
     judge_config = comparison_run_dir / "judge-config"
@@ -227,7 +279,7 @@ def prepare(
         "comparison_id": comparison_id,
         "feature": feature,
         "snapshot_tag": tag,
-        "setups": setups,
+        "setups": resolved,
         "setup_repo": config.setup_repo,
         "bench_commit": _git("rev-parse", "HEAD", cwd=BENCH_ROOT),
         "user_config_sha256": user_config.sha256,

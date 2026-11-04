@@ -171,7 +171,8 @@ def count_nudges(qa_log: str, arm: str) -> int:
     return sum(1 for line in qa_log.splitlines() if re.match(rf"^\|\s*{arm}\s*\|", line))
 
 
-def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: str) -> ArmMetrics:
+def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: dict) -> ArmMetrics:
+    """Metrics of one arm. setup is the arm's `{"path", "sha"}` object from mapping.json."""
     arm_dir = run_dir(meta) / arm
     repo = arm_dir / "repo"
     metrics_dir = config.comparisons / comparison_id / "metrics"
@@ -183,8 +184,8 @@ def _score_arm(config: Config, comparison_id: str, arm: str, meta: dict, setup: 
     qa_log = (config.comparisons / comparison_id / "qa-log.md").read_text()
     return ArmMetrics(
         arm=arm,
-        setup=setup,
-        setup_sha=meta["setups"][setup],
+        setup=setup["path"],
+        setup_sha=setup["sha"],
         final_commit=_run(["git", "rev-parse", "HEAD"], repo).strip(),
         uncommitted_changes=bool(_run(["git", "status", "--porcelain"], repo).strip()),
         lines_changed=lines,
