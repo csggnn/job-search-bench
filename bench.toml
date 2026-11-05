@@ -9,10 +9,12 @@ default_branch = "master"
 repo = "https://github.com/csggnn/simplicity-rules.git"
 
 # User-level Claude Code files copied into every arm's config dir, identical for both arms.
+# Only files that shape how an arm writes code. Personal workflow skills and commands are
+# left out, so changing them keeps user_config_sha256.
 # Paths are relative to source. settings_keys are the keys taken from source/settings.json.
 [user_config]
 source = "~/.claude"
-paths = ["CLAUDE.md", "skills/open-issue", "commands", "hooks"]
+paths = ["CLAUDE.md", "hooks"]
 settings_keys = ["hooks"]
 
 # The judge runs on a different model than the arms.
