@@ -1,5 +1,6 @@
 {
   "private": true,
+  "license": "MIT",
   "devDependencies": {
     "@fission-ai/openspec": "1.16.0"
   }
