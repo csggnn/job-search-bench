@@ -25,3 +25,6 @@ __pycache__/
 
 # OpenSpec CLI, pinned in package.json
 node_modules/
+
+# Local secrets
+.env
